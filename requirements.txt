@@ -2,3 +2,5 @@ pydantic
 beanie
 gradio
 dnspython
+dotenv
+motor
