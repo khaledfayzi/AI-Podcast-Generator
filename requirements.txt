@@ -1,6 +1,5 @@
-pydantic
-beanie
 gradio
 dnspython
+sqlalchemy
 dotenv
-motor
+mariadb

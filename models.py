@@ -1,228 +1,176 @@
+from sqlalchemy import Column, Integer, String, Date, Boolean, Enum, ForeignKey, Text
+from sqlalchemy.orm import declarative_base, relationship
 from datetime import date
-from enum import Enum
-from typing import List, Optional, Any
-from pydantic import BaseModel, Field, BeforeValidator
-from typing_extensions import Annotated
-from beanie import Document
+from typing import List
+import enum
 
-# --- Hilfs-Typ für MongoDB ObjectIds ---
-# Damit Pydantic die MongoDB "_id" als String behandeln kann,
-# obwohl sie in der Datenbank als ObjectId gespeichert sind.
-PyObjectId = Annotated[str, BeforeValidator(str)]
+# Basisklasse für die Deklaration von Klassen-Mappings
+Base = declarative_base()
 
 
-class AuftragsStatus(Enum):
-    """
-    Definiert die möglichen Zustände im Lebenszyklus eines Konvertierungsauftrags.
-
-    Values:
-        IN_BEARBEITUNG: Der Auftrag wurde erstellt und wird aktuell verarbeitet (z.B. TTS läuft).
-        ABGESCHLOSSEN: Die Audiodatei wurde erfolgreich erstellt und ist bereit.
-        FEHLGESCHLAGEN: Es trat ein Fehler auf (z.B. API-Timeout, ungültiges Format).
-    """
+# --- Enum für AuftragsStatus (LD06) ---
+class AuftragsStatus(enum.Enum):
     IN_BEARBEITUNG = "in Bearbeitung"
     ABGESCHLOSSEN = "Abgeschlossen"
     FEHLGESCHLAGEN = "Fehlgeschlagen"
 
 
-class PodcastStimme(BaseModel):
+# --- 1. Kern-Entitäten ---
+
+class Benutzer(Base):
     """
-    Repräsentiert die Konfiguration einer Sprecherstimme (vgl. LD07).
-
-    Hinweis zur Architektur:
-    In diesem MongoDB-Schema wird diese Klasse als **Embedded Document** innerhalb
-    von `Konvertierungsauftrag` verwendet. Es gibt keine eigene Collection dafür.
-    Dies ermöglicht den performanten Zugriff auf alle Stimmen eines Auftrags ohne JOINs.
-
-    Attributes:
-        rolle (str): Die Rolle im Skript (z. B. 'Moderator', 'Experte', 'Kritiker').
-        emotion (str): Die gewünschte Stimmung der Stimme (z. B. 'neutral', 'freudig').
-        geschlecht (str): Das Geschlecht der Stimme (dient der Vorauswahl der KI-Stimme).
+    Repräsentiert einen Benutzer der Plattform (LD01).
     """
-    rolle: str = Field(..., description="Rolle im Skript, z.B. 'Erzähler'")
-    emotion: str = Field(..., description="Gewünschte Emotion")
-    geschlecht: str = Field(..., description="Geschlecht der Stimme")
+    __tablename__ = 'Benutzer'
+    userId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
+    smailAdresse = Column(String(255), unique=True, nullable=False)
+    registrierungsdatum = Column(Date, nullable=False)
+
+    # Beziehungen (1:n)
+    textbeitraege = relationship("Textbeitrag", back_populates="ersteller")
+    quelldateien = relationship("Quelldatei", back_populates="besitzer")
 
 
-# --- Collection Models (Haupt-Dokumente) ---
-
-class Benutzer(Document):
+class LLMModell(Base):
     """
-    Repräsentiert einen Benutzer der Plattform (vgl. LD01).
-
-    Dies ist der zentrale Akteur. Die Authentifizierung erfolgt über die smailAdresse
-    (Magic-Link Verfahren), daher werden keine Passwörter gespeichert.
-
-    Attributes:
-        id (PyObjectId): Die von MongoDB generierte eindeutige _id.
-        smailAdresse (str): Hochschul-Mailadresse, dient als Identifikator für Login.
-        registrierungsdatum (date): Datum der ersten Anmeldung/Registrierung.
+    Metadaten für ein Large Language Model (LD04).
     """
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    smailAdresse: str
-    registrierungsdatum: date
+    __tablename__ = 'LLMModell'
+    llmId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
+    modellName = Column(String(100), nullable=False)
+    version = Column(String(50), nullable=False)
+    typ = Column(String(50))
 
-    class Settings:
-        name = "benutzer"
+    # Beziehungen (1:n)
+    textbeitraege = relationship("Textbeitrag", back_populates="llm_modell")
 
 
-class LLMModell(Document):
+class TTSModell(Base):
     """
-    Metadaten für ein Large Language Model (LLM) (vgl. LD04).
-
-    Dient der Abstraktion des verwendeten KI-Modells für die Texterstellung.
-    Unterstützt die Anforderung QA-W-10 (Austauschbarkeit der Komponenten).
-
-    Attributes:
-        id (PyObjectId): Die von MongoDB generierte eindeutige _id.
-        modellName (str): Name des Modells (z. B. 'GPT-4', 'Llama 3').
-        version (str): Versionierung, um Reproduzierbarkeit zu gewährleisten.
-        typ (str): Art des Modells (z. B. 'Chat', 'Instruct').
+    Metadaten für ein Text-to-Speech (TTS) Modell (LD05).
     """
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    modellName: str
-    version: str
-    typ: str
+    __tablename__ = 'TTSModell'
+    modellId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
+    modellName = Column(String(100), nullable=False)
+    version = Column(String(50), nullable=False)
+    typ = Column(String(50))
 
-    class Settings:
-        name = "llm_modelle"
+    # Beziehungen (1:n)
+    konvertierungsauftraege = relationship("Konvertierungsauftrag", back_populates="tts_modell")
 
 
-class TTSModell(Document):
+# --- 2. Inhalts- & Quelldaten ---
+
+class Textbeitrag(Base):
     """
-    Metadaten für ein Text-to-Speech (TTS) Modell (vgl. LD05).
-
-    Abstrahiert die genutzte Sprachsynthese-Engine. Ermöglicht den Wechsel
-    des Anbieters (z. B. von OpenAI zu ElevenLabs) ohne Code-Änderung (QA-W-10).
-
-    Attributes:
-        id (PyObjectId): Die von MongoDB generierte eindeutige _id.
-        modellName (str): Name der Engine (z. B. 'ElevenLabs Multilingual v2').
-        version (str): Version der TTS-Engine.
+    Speichert den Generierungsvorgang eines Skripts (LD02).
     """
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    modellName: str
-    version: str
+    __tablename__ = 'Textbeitrag'
+    textId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
 
-    class Settings:
-        name = "tts_modelle"
+    # Fremdschlüssel
+    userId = Column(Integer, ForeignKey('Benutzer.userId'), comment="FK")
+    llmId = Column(Integer, ForeignKey('LLMModell.llmId'), comment="FK")
+
+    userPrompt = Column(Text)
+    erzeugtesSkript = Column(Text, nullable=False)
+    titel = Column(String(255), nullable=False)
+    erstelldatum = Column(Date, nullable=False)
+    sprache = Column(String(10), nullable=False)
+    loeschzeitpunkt = Column(Date)
+
+    # Beziehungen (n:1)
+    ersteller = relationship("Benutzer", back_populates="textbeitraege")
+    llm_modell = relationship("LLMModell", back_populates="textbeitraege")
+
+    # Beziehungen (1:n)
+    quelldateien = relationship("Quelldatei", back_populates="textbeitrag")
+    konvertierungsauftraege = relationship("Konvertierungsauftrag", back_populates="textbeitrag")
 
 
-class Textbeitrag(Document):
+class Quelldatei(Base):
     """
-    Speichert den Generierungsvorgang eines Skripts (vgl. LD02).
-
-    Verbindet den User-Input (Prompt) mit dem generierten Ergebnis.
-    Dient als Basis für die spätere Audio-Konvertierung.
-
-    Attributes:
-        id (PyObjectId): Die von MongoDB generierte eindeutige _id.
-        userId: PyObjectId: Referenz auf den Ersteller (Dokument in 'benutzer').
-        llmId: PyObjectId: Referenz auf das verwendete Modell (Dokument in 'llm_modelle').
-        userPrompt (Optional[str]): Die ursprüngliche Eingabe des Nutzers.
-        erzeugtesSkript (str): Der vom LLM generierte Dialogtext.
-        titel (str): Titel des Beitrags zur Anzeige in der UI.
-        erstelldatum (date): Erstellungszeitpunkt.
-        sprache (str): Gewählte Sprache (z. B. 'DE', 'EN').
-        loeschzeitpunkt (date): Datum für automatische Bereinigung gemäß QA-S-30.
+    Verwaltet Metadaten zu hochgeladenen Dateien (LD03).
     """
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    userId: Optional[PyObjectId] = None
-    llmId: Optional[PyObjectId] = None
+    __tablename__ = 'Quelldatei'
+    dateiId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
 
-    userPrompt: Optional[str] = None
-    erzeugtesSkript: str
-    titel: str
-    erstelldatum: date
-    sprache: str
-    loeschzeitpunkt: date
+    # Fremdschlüssel
+    textId = Column(Integer, ForeignKey('Textbeitrag.textId'), nullable=True, comment="FK")
+    userId = Column(Integer, ForeignKey('Benutzer.userId'), nullable=True, comment="FK")
 
-    class Settings:
-        name = "textbeitraege"
+    dateipfad = Column(String(512), nullable=False)
+    mimeType = Column(String(100), nullable=False)
+    dateigroesse = Column(Integer)
+    dateiname = Column(String(255), nullable=False)
+    loeschzeitpunkt = Column(Date)
+
+    # Beziehungen (n:1)
+    textbeitrag = relationship("Textbeitrag", back_populates="quelldateien")
+    besitzer = relationship("Benutzer", back_populates="quelldateien")
 
 
-class Quelldatei(Document):
+# --- 3. Konvertierung & Podcast ---
+
+class Konvertierungsauftrag(Base):
     """
-    Verwaltet Metadaten zu hochgeladenen Dateien (vgl. LD03).
-
-    Dateien dienen der Kontextanreicherung (RAG - Retrieval Augmented Generation).
-    Sie können an einem Textbeitrag hängen oder in der User-Library liegen.
-
-    Attributes:
-        id (PyObjectId): Die von MongoDB generierte eindeutige _id.
-        textId (Optional[PyObjectId]): Verweis auf einen spezifischen Textbeitrag (falls zutreffend).
-        userId (Optional[PyObjectId]): Verweis auf den Besitzer (für User Library Funktion).
-        dateipfad (str): Physischer Pfad zur Datei im Storage/Dateisystem.
-        mimeType (str): Dateityp (z. B. 'application/pdf').
-        dateigroesse (int): Größe in Bytes.
-        dateiname (str): Ursprünglicher Dateiname beim Upload.
-        loeschzeitpunkt (date): Datum für automatische Löschung (QA-S-30).
+    Steuert den Prozess der Audio-Erzeugung (LD06).
     """
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    textId: Optional[PyObjectId] = None
-    userId: Optional[PyObjectId] = None
+    __tablename__ = 'Konvertierungsauftrag'
+    auftragId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
 
-    dateipfad: str
-    mimeType: str
-    dateigroesse: int
-    dateiname: str
-    loeschzeitpunkt: date
+    # Fremdschlüssel
+    textId = Column(Integer, ForeignKey('Textbeitrag.textId'), comment="FK")
+    modellId = Column(Integer, ForeignKey('TTSModell.modellId'), comment="FK")
 
-    class Settings:
-        name = "quelldateien"
+    gewuenschteDauer = Column(Integer, nullable=False)
+    # Verwendung des Python Enum für den Status
+    status = Column(Enum(AuftragsStatus), nullable=False)
+
+    # Beziehungen (n:1)
+    textbeitrag = relationship("Textbeitrag", back_populates="konvertierungsauftraege")
+    tts_modell = relationship("TTSModell", back_populates="konvertierungsauftraege")
+
+    # Beziehungen (1:n)
+    stimmen = relationship("PodcastStimme", back_populates="auftrag")
+    podcast = relationship("Podcast", back_populates="konvertierungsauftrag", uselist=False)  # 1:1
 
 
-class Konvertierungsauftrag(Document):
+class Podcast(Base):
     """
-    Steuert den Prozess der Audio-Erzeugung (vgl. LD06).
-
-    Verknüpft ein fertiges Skript (Textbeitrag) mit Audio-Parametern.
-    Beinhaltet die Sprecherkonfiguration direkt als eingebettete Liste.
-
-    Attributes:
-        id (PyObjectId): Die von MongoDB generierte eindeutige _id.
-        textId (PyObjectId): Referenz auf den Quelltext (Dokument in 'textbeitraege').
-        modellId (PyObjectId): Referenz auf die TTS-Engine (Dokument in 'tts_modelle').
-        gewuenschteDauer (int): Zielvorgabe für die Länge in Minuten.
-        status (AuftragsStatus): Aktueller Fortschritt der Generierung.
-        stimmen (List[PodcastStimme]): Liste der konfigurierten Sprecher (Embedded).
+    Repräsentiert das finale Audio-Produkt (LD08).
     """
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    textId: Optional[PyObjectId] = None
-    modellId: Optional[PyObjectId] = None
-    gewuenschteDauer: int
-    status: AuftragsStatus
+    __tablename__ = 'Podcast'
+    podcastId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
 
-    stimmen: List[PodcastStimme] = []
+    # Fremdschlüssel
+    # 1:1 Beziehung zum Konvertierungsauftrag
+    auftragId = Column(Integer, ForeignKey('Konvertierungsauftrag.auftragId'), unique=True, comment="FK")
 
-    class Settings:
-        name = "auftraege"
+    titel = Column(String(255), nullable=False)
+    realdauer = Column(Integer, nullable=False)
+    dateipfadAudio = Column(String(512), nullable=False)
+    erstelldatum = Column(Date, nullable=False)
+    isPublic = Column(Boolean, default=False, nullable=False)
+    loeschzeitpunkt = Column(Date)
+
+    # Beziehungen (n:1)
+    konvertierungsauftrag = relationship("Konvertierungsauftrag", back_populates="podcast")
 
 
-class Podcast(Document):
+class PodcastStimme(Base):
     """
-    Repräsentiert das finale Audio-Produkt (vgl. LD08).
-
-    Enthält den Pfad zur generierten Datei und Statusinformationen.
-
-    Attributes:
-        id (PyObjectId): Die von MongoDB generierte eindeutige _id.
-        auftragsId (PyObjectId): Referenz auf den Auftrag, aus dem der Podcast entstand.
-        realdauer (int): Tatsächliche Laufzeit des Audios in Sekunden.
-        dateipfadAudio (str): Pfad zur MP3/WAV-Datei.
-        erstelldatum (date): Zeitpunkt der Fertigstellung.
-        titel (str): Titel des Podcasts.
-        isPublic (bool): Steuert die Sichtbarkeit für andere Nutzer (vgl. QA-S-10).
-        loeschzeitpunkt (date): Datum für automatische Löschung (QA-S-30).
+    Definiert eine Sprecherstimme und deren Rolle für einen Auftrag (LD07).
     """
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    auftragsId: Optional[PyObjectId] = None
-    realdauer: int
-    dateipfadAudio: str
-    erstelldatum: date
-    titel: str
-    isPublic: bool
-    loeschzeitpunkt: date
+    __tablename__ = 'PodcastStimme'
+    stimmeId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
 
-    class Settings:
-        name = "podcasts"
+    # Fremdschlüssel
+    auftragId = Column(Integer, ForeignKey('Konvertierungsauftrag.auftragId'), comment="FK")
+
+    rolle = Column(String(100), nullable=False)
+    emotion = Column(String(100), nullable=False)
+    geschlecht = Column(String(50), nullable=False)
+
+    # Beziehungen (n:1)
+    auftrag = relationship("Konvertierungsauftrag", back_populates="stimmen")
