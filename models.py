@@ -168,6 +168,9 @@ class PodcastStimme(Base):
     # Fremdschlüssel
     auftragId = Column(Integer, ForeignKey('Konvertierungsauftrag.auftragId'), comment="FK")
 
+    # Hat gefehlt
+    name = Column(String(50), nullable=False, default="Max")
+
     rolle = Column(String(100), nullable=False)
     emotion = Column(String(100), nullable=False)
     geschlecht = Column(String(50), nullable=False)
