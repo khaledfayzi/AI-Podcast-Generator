@@ -3,18 +3,19 @@
 
 # Kommentare sind von KI generiert
 
-import uuid
 import torch
 import nltk  # Wird benötigt, um Texte sinnvoll in Sätze zu unterteilen
 import numpy as np
 import os
+import time
+from datetime import datetime
 from pydub import AudioSegment  # Notwendig für den Export als MP3
 
 from team04.Interfaces.interface_tts_service import ITTSService
 from team04.models import PodcastStimme
 os.environ["SUNO_OFFLOAD_CPU"] = "True"
 
-# ------------------------------------
+# ------------------------------------ KI generiert
 # FIX FÜR PYTORCH 2.6+ & BARK KOMPATIBILITÄT
 # ------------------------------------
 # Hintergrund: Bark verwendet alte Checkpoint-Dateien. Neuere PyTorch-Versionen
@@ -34,7 +35,7 @@ def _patched_load(*args, **kwargs):
 
 
 torch.load = _patched_load
-# -----------------------------------
+# ----------------------------------- Bis hier
 
 from bark.generation import (
     generate_text_semantic,
@@ -44,6 +45,7 @@ from bark.api import semantic_to_waveform
 from bark import SAMPLE_RATE
 
 OUTPUT_DIR = "test_podcasts"
+LOG_FILE = "test_podcasts/generation_history.txt"
 
 
 class BarkTTSService(ITTSService):
@@ -150,6 +152,11 @@ class BarkTTSService(ITTSService):
             None: Falls ein Fehler auftrat.
         """
 
+        # --- START ZEITMESSUNG ---
+        start_time = time.time()
+        timestamp_start = datetime.now().strftime("%H:%M:%S")
+        print(f"\n--- Start Generierung um {timestamp_start} ---")
+
         # Konfiguration für die Generierung
         GEN_TEMP = 0.6  # Kreativität der KI (0.6 ist ein guter Standardwert für Stabilität)
         SILENCE = np.zeros(int(0.25 * SAMPLE_RATE))  # Erzeugt 0.25 Sekunden Stille als Array
@@ -229,8 +236,12 @@ class BarkTTSService(ITTSService):
         # Alle Schnipsel zu einem langen Audio-Array zusammenfügen
         full_audio = np.concatenate(pieces)
 
+        end_time = time.time()
+        duration_seconds = end_time - start_time
+
+
         # Speichern und Pfad zurückgeben
-        return self.save_audiofile(full_audio)
+        return self.save_audiofile(full_audio, duration_seconds)
 
     @staticmethod
     def generate_sentence(text, voice_id, temp):
@@ -249,7 +260,7 @@ class BarkTTSService(ITTSService):
         )
         return semantic_to_waveform(semantic_tokens, history_prompt=voice_id)
 
-    def save_audiofile(self, audio_data_float):
+    def save_audiofile(self, audio_data_float,duration_sec):
         """
         Konvertiert das Roh-Audio (Float32) in MP3 und speichert es.
 
@@ -260,6 +271,11 @@ class BarkTTSService(ITTSService):
             str: Dateipfad zur erstellten MP3.
         """
         try:
+            # Formatierung der Dauer (z.B. "1m_30s")
+            minutes = int(duration_sec // 60)
+            seconds = int(duration_sec % 60)
+            duration_str = f"{minutes}m_{seconds}s"
+
             # 1. Konvertierung Float32 -> Int16 (PCM Standard)
             # Bark liefert Werte zwischen -1.0 und 1.0.
             # 16-Bit Audio geht von -32768 bis 32767.
@@ -273,14 +289,26 @@ class BarkTTSService(ITTSService):
                 channels=1  # Mono (Wichtig! Sonst klingt es wie Mickey Mouse)
             )
 
-            # 3. Eindeutigen Dateinamen generieren
-            file_name = f"{uuid.uuid4()}.mp3"
+            duration_readable = f"{minutes} min {seconds} sek"
+            # --- A: DATEINAME GENERIEREN ---
+            # Format: podcast_YYYY-MM-DD_HH-MM-SS_Dauer-XM_YS.mp3
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = f"podcast_{timestamp}_Dauer-{duration_str}.mp3"
             file_path = os.path.join(self.output_dir, file_name)
 
             # 4. Exportieren
             sound.export(file_path, format="mp3", bitrate="192k")
 
             print(f"Datei gespeichert: {file_path}")
+
+            # --- B: LOGBUCH SCHREIBEN ---
+            # Wir hängen eine Zeile an die Textdatei an
+            log_entry = f"[{timestamp.replace('_', ' ')}] Datei: {file_name} | Dauer: {duration_readable}\n"
+
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(log_entry)
+
+            print(f"📝 Logbuch aktualisiert: {LOG_FILE}")
             return file_path
 
         except Exception as e:
@@ -370,7 +398,7 @@ if __name__ == "__main__":
     # TEST 1: Kurzer Monolog
     # -------------------------------------------------
     print("\n[Test 1] Generiere Monolog (Max)...")
-    text_mono = "Hallo! Ich teste gerade, ob meine AMD Grafikkarte erkannt wurde."
+    text_mono = "Hallo! Ich teste gerade, ob die TTS-Engine funktioniert."
 
     file_path_mono = service.generate_audio(
         skript=text_mono,
@@ -378,28 +406,8 @@ if __name__ == "__main__":
     )
 
     if file_path_mono:
-        print(f"✅ Monolog fertig: {file_path_mono}")
+        print(f" Monolog fertig: {file_path_mono}")
     else:
-        print("❌ Monolog fehlgeschlagen.")
-
-    # -------------------------------------------------
-    # TEST 2: Dialog (Falls Test 1 schnell ging)
-    # -------------------------------------------------
-    print("\n[Test 2] Generiere Dialog (Max & Sara)...")
-    text_dialog = """
-    Max: Hey Sara, funktioniert die Audio Generierung?
-    Sara: Ja Max, das System läuft jetzt stabil mit Hardware Erkennung.
-    """
-
-    file_path_dialog = service.generate_audio(
-        skript=text_dialog,
-        hauptstimme=max_stimme,  # Wird für 'Max:' genutzt
-        zweitstimme=sara_stimme  # Wird für 'Sara:' genutzt
-    )
-
-    if file_path_dialog:
-        print(f"✅ Dialog fertig: {file_path_dialog}")
-    else:
-        print("❌ Dialog fehlgeschlagen.")
+        print(" Monolog fehlgeschlagen.")
 
     print("\n--- TEST ENDE ---")
