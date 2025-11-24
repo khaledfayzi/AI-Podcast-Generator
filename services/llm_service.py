@@ -9,7 +9,6 @@
 #   - Später: Sendet den Prompt an die OpenAI API und gibt das bereinigte Skript zurück.
 #   - Trennung von System-Prompt (Rollenbeschreibung) und User-Prompt.
 
-from builtins import Exception, print, str
 import requests 
 
 class LLMService:
@@ -26,23 +25,77 @@ class LLMService:
 
 
 
-    def _system_prompt(self) ->str:
-        return("Du bist ein professioneller deutschsprachiger Podcast-Autor. "
-        "Schreibe alle Inhalte ausschließlich auf Deutsch. "
-        "Der Stil soll klar, spannend und gut strukturiert sein."
-        )
+    def _system_prompt(self,config:dict) ->str:
+        language=config.get("language","de")
+        style=config.get("style","neutral")
+        if language=="en":
+            base="You are a professional English podcast author. Write clearly and well-structured."
+        else:
+            base = (
+    "Du bist ein professioneller deutschsprachiger Podcast-Autor. "
+    "DU MUSST ALLES AUSSCHLIESSLICH AUF DEUTSCH SCHREIBEN. "
+    "Kein einziger englischer Satz ist erlaubt. "
+)
+
+        if language=="en":
+            if style=="komisch":
+                style_text="Your writing style should be funny and humorous."
+            elif style=="freudig":
+                style_text="Your writing style should be happy, bright and uplifting."
+            elif style=="gechillt":
+                style_text="Your writing style should be relaxed, calm and casual."
+            else:
+                style_text="Keep a neutral and factual tone."
+        else:
+            if style=="komisch":
+                style_text="Dein Schreibstil soll komisch und humorvoll sein."
+            elif style=="freudig":
+                style_text="Dein Schreibstil soll freudig, fröhlich und positiv sein."
+            elif style=="gechillt":
+                style_text="Dein Schreibstil soll gechillt, entspannt und locker sein."
+            else:
+                style_text="Halte einen neutralen und sachlichen Ton."
+
+        return f"{base} {style_text}"
+
+
+       
     
 
-    def _user_prompt(self, thema:str) ->str:
+    def _user_prompt(self, thema:str,config:dict) ->str:
+        dauer=config.get("dauer",15)
+        speakers=config.get("speakers",1)
+        pdf_text=config.get("pdf_text","")
+        roles=config.get("roles",{})
+        speaker1=roles.get("speaker1","Moderator")
+        speaker2=roles.get("speaker2","Experte")
+
+        prompt=(f"Erstelle ein Podcast-Skript über das Thema {thema}. "
+        f"Der Podcast soll etwa {dauer} Minuten dauern. ")
         
-        return(f"Erstelle ein Podcast-Skript über folgendes Thema: {thema}")
+        if speakers==2:
+            prompt += (f"Schreibe einen Dialog zwischen {speaker1} und {speaker2}. ")
+
+        else :
+            prompt +="Schreibe das Skript für einen einzelnen Sprecher. "
+
+        if pdf_text:
+            prompt +=f"Verwende zusätzlich folgenden Text:\n{pdf_text}\n"
+        prompt +="Strukturiere das Skript in: Intro, Hauptteil und Outro."
+
+        return prompt
     
 
-    #Ergibt den kompletten Text, der an die KI geschickt wird.
-    def _build_prompt(self, thema :str)-> str:
+    #baut die Nachrichtenstruktur für den Chat-Endpunkt
+    def _build_prompt(self, thema :str,config:dict)-> str:
+        """
+        Gibt eine Liste zurück, wie der Chat-Endpunkt es erwartet.
+        """
 
-        return (f"System:\n{self._system_prompt()}\n\n"
-                f"User:\n{self._user_prompt(thema)}\n\n")
+        return [
+            {"role": "system", "content": self._system_prompt(config)},
+            {"role": "user",   "content": self._user_prompt(thema, config)}
+        ]
     
 
     #Wird benutzt, wenn echte KI nicht genutzt wird oder ein Fehler passiert
@@ -50,40 +103,50 @@ class LLMService:
         return(f"==Dummy Podcast über {thema}==\n"
                "Dies ist eine Testausgabe..."
                )
-    def _ask_ollama(self, prompt: str) -> str:
+    
+
+    def _ask_ollama(self, messages) -> str:
         payload = {
-         "model": self.model,
-            "messages": [
-            {"role": "system", "content": self._system_prompt()},
-            {"role": "user", "content": prompt}
-         ],
-         "stream": False
+            "model": self.model,
+            "messages": messages,
+            "stream": False
         }
 
         try:
             res = requests.post(self.api_url, json=payload)
             res.raise_for_status()
             data = res.json()
-            return data["message"]["content"]
+
+
+            if "message" in data:
+                return data["message"]["content"]
+            if "messages" in data:
+                return data["messages"][-1]["content"]
+
+            raise KeyError("Kein gültiges Antwortformat gefunden.")
+
         except Exception as e:
             print(f"[LLMService] OLLAMA Fehler: {e}")
             return None
 
-
    
 
     #Öffentliche Methode
-    def generate_script(self,thema:str)->str:
+    def generate_script(self, thema: str, config: dict | None = None) -> str:
+
+
+        if config is None:
+            config={}
 
         #Dummy?
         if self.use_dummy:
             return self._dummy_output(thema)
         
         #Prompt bauen
-        prompt=self._build_prompt(thema)
+        messages=self._build_prompt(thema,config)
 
         #Echte Anfrage
-        response = self._ask_ollama(prompt)
+        response = self._ask_ollama(messages)
 
         #falls Ollama nicht läuft
         if response is None:
