@@ -9,3 +9,4 @@ nltk
 pydub
 torch
 scipy
+requests 
