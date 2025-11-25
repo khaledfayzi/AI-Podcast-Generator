@@ -12,13 +12,21 @@
 import requests 
 
 class LLMService:
-
+    """
+        Service für Textgenerierung mit einem Sprachmodell.
+        - Baut System- und User-Prompts
+        - Sendet Anfrage an Ollama
+        - Gibt reinen Podcast-Text zurück
+    """
+        
 
     def __init__(self, model_name: str = "llama3", use_dummy: bool = False):
         """
+        Initialisiert den Service.
         model_name: welches Ollama-Modell benutzt wird
         use_dummy: wenn True → KI wird NICHT gefragt, Dummy-Text wird benutzt
         """
+
         self.model = model_name
         self.use_dummy = use_dummy
         self.api_url = "http://localhost:11434/api/chat"   # OLLAMA-URL
@@ -26,16 +34,23 @@ class LLMService:
 
 
     def _system_prompt(self,config:dict) ->str:
+        """
+        Baut den System-Prompt.
+        Dieser beschreibt der KI *wie* sie schreiben soll.
+        (Sprache, Schreibstil)
+        """
+
         language=config.get("language","de")
         style=config.get("style","neutral")
+
         if language=="en":
             base="You are a professional English podcast author. Write clearly and well-structured."
         else:
             base = (
-    "Du bist ein professioneller deutschsprachiger Podcast-Autor. "
-    "DU MUSST ALLES AUSSCHLIESSLICH AUF DEUTSCH SCHREIBEN. "
-    "Kein einziger englischer Satz ist erlaubt. "
-)
+                "Du bist ein professioneller deutschsprachiger Podcast-Autor. "
+                "DU MUSST ALLES AUSSCHLIESSLICH AUF DEUTSCH SCHREIBEN. "
+                "Kein einziger englischer Satz ist erlaubt. "
+            )
 
         if language=="en":
             if style=="komisch":
@@ -63,6 +78,13 @@ class LLMService:
     
 
     def _user_prompt(self, thema:str,config:dict) ->str:
+
+        """
+        Baut den User-Prompt.
+        Dieser enthält *was* geschrieben werden soll:
+        Thema, Dauer, Sprecher, PDF-Inhalt usw.
+        """
+
         dauer=config.get("dauer",15)
         speakers=config.get("speakers",1)
         pdf_text=config.get("pdf_text","")
@@ -86,10 +108,10 @@ class LLMService:
         return prompt
     
 
-    #baut die Nachrichtenstruktur für den Chat-Endpunkt
     def _build_prompt(self, thema :str,config:dict)-> str:
         """
-        Gibt eine Liste zurück, wie der Chat-Endpunkt es erwartet.
+        Kombiniert System-Prompt + User-Prompt
+        in das Format, das der Chat-API-Endpunkt erwartet.
         """
 
         return [
@@ -98,26 +120,34 @@ class LLMService:
         ]
     
 
-    #Wird benutzt, wenn echte KI nicht genutzt wird oder ein Fehler passiert
+
     def _dummy_output(self,thema:str)-> str:
+        """
+        Gibt Test-Text zurück, falls kein echtes KI-Modell genutzt wird.
+        Hilfreich für lokale Tests ohne KI.
+        """
+
         return(f"==Dummy Podcast über {thema}==\n"
                "Dies ist eine Testausgabe..."
                )
     
 
     def _ask_ollama(self, messages) -> str:
+        """
+        Sendet die Anfrage an Ollama und gibt den generierten Text zurück.
+        Behandelt auch Fehlerfälle und unterschiedliche Antwortformate.
+        """
+
         payload = {
             "model": self.model,
             "messages": messages,
-            "stream": False
+            "stream": False,
         }
 
         try:
             res = requests.post(self.api_url, json=payload)
             res.raise_for_status()
             data = res.json()
-
-
             if "message" in data:
                 return data["message"]["content"]
             if "messages" in data:
@@ -130,10 +160,13 @@ class LLMService:
             return None
 
    
-
-    #Öffentliche Methode
     def generate_script(self, thema: str, config: dict | None = None) -> str:
-
+        """
+        Öffentliche Methode.
+          Baut den Prompt
+          Fragt das KI-Modell an
+          Gibt das fertige Podcast-Skript zurück
+        """
 
         if config is None:
             config={}
