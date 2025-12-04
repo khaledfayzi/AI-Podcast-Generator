@@ -12,3 +12,4 @@ scipy
 requests
 sshtunnel
 flask
+google-cloud-texttospeech

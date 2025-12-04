@@ -1,268 +1,180 @@
-# NOTE: TTS Service (Audioerzeugung)
-# Kapselt die Logik für die Umwandlung von Text in Sprache (Text-to-Speech).
-
-# Kommentare sind von KI generiert
-
 import uuid
-import torch
-import nltk  # Wird benötigt, um Texte sinnvoll in Sätze zu unterteilen
-import numpy as np
+import nltk
 import os
 import logging
-from pydub import AudioSegment  # Notwendig für den Export als MP3
+import io
+import time
 
+from dotenv import load_dotenv
+from google.cloud import texttospeech
+from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
+from pydub import AudioSegment
+
+# Eigene Imports
 from team04.Interfaces.interface_tts_service import ITTSService
 from team04.models import PodcastStimme
 from exceptions import TTSServiceError
 
-# Logger
+load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 
-os.environ["SUNO_OFFLOAD_CPU"] = "True"
 
-
-
-# ------------------------------------ KI generiert
-# FIX FÜR PYTORCH 2.6+ & BARK KOMPATIBILITÄT
-# ------------------------------------
-# Hintergrund: Bark verwendet alte Checkpoint-Dateien. Neuere PyTorch-Versionen
-# blockieren das Laden aus Sicherheitsgründen (weights_only=True ist jetzt Standard).
-# Wir müssen die Ladefunktion kurzzeitig "patchen", um das zu umgehen.
-_original_load = torch.load
-
-
-def _patched_load(*args, **kwargs):
+class GoogleTTSService(ITTSService):
     """
-    Wrapper für torch.load, der weights_only=False erzwingt.
-    Verhindert Abstürze beim Laden der Bark-Modelle.
-    """
-    if 'weights_only' not in kwargs:
-        kwargs['weights_only'] = False
-    return _original_load(*args, **kwargs)
-
-
-torch.load = _patched_load
-# ----------------------------------- Bis hier
-
-from bark.generation import (
-    generate_text_semantic,
-    preload_models,
-)
-from bark.api import semantic_to_waveform
-from bark import SAMPLE_RATE
-
-
-
-class BarkTTSService(ITTSService):
-    """
-    Dienst für die Generierung von Sprache aus Text (Text-to-Speech).
-
-    Verwendet das 'Bark'-Modell von Suno AI.
-    Features:
-    - Automatische Erkennung von Mono-Logs vs. Dialogen.
-    - Speichern als MP3.
-    - Nutzung von 'Small'-Modellen für CPU-Freundlichkeit.
+    Implementierung des TTS Services mittels Google Cloud TTS API (Chirp/Neural2).
     """
 
     def __init__(self):
-        logger.info("Initializing TTSService...")  # <--- NEU: Logger statt print
+        try:
+            self.client = texttospeech.TextToSpeechClient()
+        except Exception as e:
+            raise TTSServiceError("Google Client konnte nicht starten.")
 
-        # 1. Hardware checken und Konfiguration ermitteln
-        use_small_models, device_type = self._check_hardware()
+    def generate_audio(self, script_text: str, primary_voice: PodcastStimme,
+                       secondary_voice: PodcastStimme = None) -> str | None:
+        """
+        Generiert Audio über die Google API mit SSML Support und Text-Chunking.
+        """
+        combined_audio = AudioSegment.empty()
 
-        logger.info(f"--> Konfiguration: Gerät={device_type}, Kleine Modelle={use_small_models}")
-
-        # 2. Modelle basierend auf Hardware laden
-        preload_models(
-            text_use_small=use_small_models,
-            coarse_use_small=use_small_models,
-            fine_use_small=use_small_models,
-            text_use_gpu=(device_type == "cuda"),
-            coarse_use_gpu=(device_type == "cuda"),
-            fine_use_gpu=(device_type == "cuda")
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
         )
 
-        try:
-            nltk.data.find('tokenizers/punkt_tab')
-        except LookupError:
-            nltk.download('punkt_tab')
+        lines = script_text.split('\n')
+        has_generated_content = False
 
-#------------------------------------------------------------------------------
-# Hat Ki generiert
-    def _check_hardware(self):
-        """
-        Prüft GPU-Verfügbarkeit und VRAM-Größe.
-        Returns:
-            tuple: (use_small_models: bool, device_type: str)
-        """
-        # Standard: Vorsichtshalber CPU und kleine Modelle
-        use_small = True
-        device = "cpu"
+        voice_params_map = {
+            primary_voice.name: self._get_google_voice_params(primary_voice.name),
+        }
+        if secondary_voice:
+            voice_params_map[secondary_voice.name] = self._get_google_voice_params(secondary_voice.name)
 
-        try:
-            # Prüfen ob CUDA (NVIDIA) oder ROCm (AMD unter Linux) verfügbar ist
-            if torch.cuda.is_available():
-                device_count = torch.cuda.device_count()
-                name = torch.cuda.get_device_name(0)
+        current_params = voice_params_map[primary_voice.name]
 
-                # VRAM in GB umrechnen
-                # total_memory gibt Bytes zurück -> / 1024^3 = GB
-                vram_bytes = torch.cuda.get_device_properties(0).total_memory
-                vram_gb = vram_bytes / (1024 ** 3)
+        logger.info(f"Sende {len(lines)} Zeilen an Google...")
 
-                logger.info(f"GPU erkannt: {name} ({vram_gb:.2f} GB VRAM)")  # <--- NEU
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
 
-                device = "cuda"
+            text_to_speak = line
 
-                # ENTSCHEIDUNGSLOGIK:
-                if vram_gb >= 10.0:
-                    logger.info("VRAM ausreichend: Nutze GROSSE Modelle für beste Qualität.") # <--- NEU
-                    use_small = False
-                else:
-                    logger.warning("⚠ VRAM < 10GB: Nutze KLEINE Modelle zur Sicherheit.") # <--- NEU: Warning
-                    use_small = True
-            else:
-                logger.info("Keine GPU gefunden (oder Treiber nicht erkannt). Nutze CPU.") # <--- NEU
+            # Sprecherwechsel erkennen
+            if secondary_voice and line.startswith(f"{primary_voice.name}:"):
+                current_params = voice_params_map[primary_voice.name]
+                text_to_speak = line.split(":", 1)[1].strip()
+            elif secondary_voice and line.startswith(f"{secondary_voice.name}:"):
+                current_params = voice_params_map[secondary_voice.name]
+                text_to_speak = line.split(":", 1)[1].strip()
 
-        except Exception as e:
-            logger.error(f"Fehler bei der Hardware-Erkennung: {e}. Fallback auf CPU.", exc_info=True)
+            if not text_to_speak:
+                continue
 
-        return use_small, device
+            # Text splitten (Google Limit beachten)
+            text_chunks = self._text_splitter(text_to_speak, max_chars=4000)
 
-#------------------------------------------------------------------------------------
-
-    def generate_audio(self, skript: str, hauptstimme: PodcastStimme, zweitstimme: PodcastStimme = None) -> str | None:
-        """
-        Hauptmethode zur Audioerzeugung.
-        ...
-        """
-        # Konfiguration für die Generierung
-        GEN_TEMP = 0.6
-        SILENCE = np.zeros(int(0.25 * SAMPLE_RATE))
-
-        pieces = []
-
-        # ---------------------------------------
-        # FALL 1: Nur eine Stimme (Monolog)
-        # ---------------------------------------
-        if zweitstimme is None:
-            skript = skript.replace("\n", " ").strip()
-
-            try:
-                voice_id = StimmenManager.get_voice_id(hauptstimme.name, sprache="ger")
-                sentences = nltk.sent_tokenize(skript)
-
-                for sentence in sentences:
-                    audio_array = self._generate_sentence(sentence, voice_id, GEN_TEMP)
-                    pieces += [audio_array, SILENCE.copy()]
-
-            except Exception as e:
-                logger.error(f"Kritischer Fehler im Monolog: {e}", exc_info=True)
-                raise TTSServiceError(f"Monolog konnte nicht generiert werden: {e}")
-
-        # ---------------------------------------
-        # FALL 2: Zwei Stimmen (Dialog)
-        # ---------------------------------------
-        else:
-            id_main = StimmenManager.get_voice_id(hauptstimme.name, sprache="ger")
-            id_sec = StimmenManager.get_voice_id(zweitstimme.name, sprache="ger")
-
-            lines = skript.split('\n')
-
-            for line in lines:
-                line = line.strip()
-                if not line: continue
-
-                current_voice_id = id_main
-                text_to_speak = line
-
-                if line.startswith(f"{hauptstimme.name}:"):
-                    current_voice_id = id_main
-                    text_to_speak = line.split(":", 1)[1].strip()
-
-                elif line.startswith(f"{zweitstimme.name}:"):
-                    current_voice_id = id_sec
-                    text_to_speak = line.split(":", 1)[1].strip()
-
-                logger.debug(f"  -> {current_voice_id} spricht: '{text_to_speak[:20]}...'")
-
-                sub_sentences = nltk.sent_tokenize(text_to_speak)
-                for sub in sub_sentences:
+            for chunk in text_chunks:
+                max_retries = 3
+                for attempt in range(max_retries):
                     try:
-                        audio_array = self._generate_sentence(sub, current_voice_id, GEN_TEMP)
-                        pieces += [audio_array, SILENCE.copy()]
-                    except Exception as e:
-                        logger.error(f"Fehler bei Satz '{sub}': {e}", exc_info=True)
-                        continue
+                        # SSML Wrapper für den Chunk
+                        ssml_text = f"<speak>{chunk}</speak>"
 
-        # Prüfen, ob überhaupt Audio erzeugt wurde
-        if not pieces:
-            logger.warning("Kein Audio generiert.")
+                        synthesis_input = texttospeech.SynthesisInput(ssml=ssml_text)
+
+                        response = self.client.synthesize_speech(
+                            input=synthesis_input,
+                            voice=current_params,
+                            audio_config=audio_config
+                        )
+
+                        segment = AudioSegment.from_file(io.BytesIO(response.audio_content), format="mp3")
+                        combined_audio += segment
+                        has_generated_content = True
+                        break
+
+                    except (ResourceExhausted, ServiceUnavailable) as e:
+                        if attempt < max_retries - 1:
+                            wait_time = 2 * (attempt + 1)
+                            logger.warning(f"Google Rate Limit (429/503). Warte {wait_time}s...")
+                            time.sleep(wait_time)
+                        else:
+                            logger.error(f"Endgültig gescheitert bei Chunk '{chunk[:15]}...': {e}")
+
+                    except Exception as e:
+                        logger.error(f"Fehler bei Chunk '{chunk[:15]}...': {e}")
+                        break
+
+                time.sleep(0.3)
+
+            # Kurze Pause zwischen Sätzen/Zeilen
+            combined_audio += AudioSegment.silent(duration=350)
+
+        if not has_generated_content:
             return None
 
-        full_audio = np.concatenate(pieces)
-        return self._save_audiofile(full_audio)
+        return self._save_audio(combined_audio)
 
     @staticmethod
-    def _generate_sentence(text, voice_id, temp):
-        semantic_tokens = generate_text_semantic(
-            text,
-            history_prompt=voice_id,
-            temp=temp,
-            min_eos_p=0.05
+    def _text_splitter(text: str, max_chars: int) -> list[str]:
+        """
+        Teilt Text basierend auf Sätzen auf, um das Zeichenlimit einzuhalten.
+        """
+        if len(text) <= max_chars:
+            return [text]
+
+        chunks_list = []
+        current_chunk_str = ""
+        sentence_list = nltk.sent_tokenize(text)
+
+        for sentence in sentence_list:
+            if len(sentence) > max_chars:
+                if current_chunk_str:
+                    chunks_list.append(current_chunk_str)
+                    current_chunk_str = ""
+                chunks_list.append(sentence)
+                continue
+
+            if len(current_chunk_str) + len(sentence) < max_chars:
+                current_chunk_str += " " + sentence
+            else:
+                chunks_list.append(current_chunk_str.strip())
+                current_chunk_str = sentence
+
+        if current_chunk_str:
+            chunks_list.append(current_chunk_str.strip())
+
+        return chunks_list
+
+    def _get_google_voice_params(self, name: str):
+        """
+        Wählt die Google Voice Konfiguration basierend auf dem Namen.
+        """
+        name_mapping = {
+            "Max": "de-DE-Chirp3-HD-Enceladus",
+            "Tom": "de-DE-Chirp3-HD-Achird",
+            "Sara": "de-DE-Chirp3-HD-Erinome",
+        }
+
+        voice_name = name_mapping.get(name, "de-DE-Chirp3-HD-Enceladus")
+        lang_code = voice_name[:5]
+
+        return texttospeech.VoiceSelectionParams(
+            language_code=lang_code,
+            name=voice_name
         )
-        return semantic_to_waveform(semantic_tokens, history_prompt=voice_id)
-
-    def _save_audiofile(self, audio_data_float):
-        try:
-            audio_data_int16 = (audio_data_float * 32767).astype(np.int16)
-
-            sound = AudioSegment(
-                audio_data_int16.tobytes(),
-                frame_rate=SAMPLE_RATE,
-                sample_width=2,
-                channels=1
-            )
-
-            file_name = f"podcast_{uuid.uuid4()}.mp3"
-            file_path = os.path.join(file_name)
-
-            sound.export(file_path, format="mp3", bitrate="192k")
-
-            logger.info(f"Datei erfolgreich gespeichert: {file_path}") # <--- NEU
-            return file_path
-
-        except Exception as e:
-            logger.error(f"Fehler beim Speichern der Datei: {e}", exc_info=True)
-            raise TTSServiceError(f"Speichern fehlgeschlagen: {e}")
-
-
-class StimmenManager:
-    """
-    Verwaltet das Mapping zwischen lesbaren Namen (Datenbank) und technischen IDs (Bark).
-    """
-    VOICE_MAP = {
-        "Max": "v2/de_speaker_0",
-        "Sara": "v2/de_speaker_3",
-        "Tom": "v2/de_speaker_1",
-        "Corinna": "v2/de_speaker_8",
-        "Peter": "v2/en_speaker_1",
-        "Glenn": "v2/en_speaker_2",
-        "Lois": "v2/en_speaker_6",
-    }
 
     @staticmethod
-    def get_voice_id(name: str, sprache: str = "ger") -> str:
+    def _save_audio(audio_obj: AudioSegment) -> str:
         try:
-            voice_id = StimmenManager.VOICE_MAP.get(name)
-
-            if voice_id is None:
-                if sprache == "ger":
-                    return "v2/de_speaker_0"
-                return "v2/en_speaker_1"
-
-            return voice_id
+            filename = f"podcast_google_{uuid.uuid4()}.mp3"
+            audio_obj.export(filename, format="mp3", bitrate="192k")
+            logger.info(f"Google TTS fertig: {filename}")
+            return filename
         except Exception as e:
-            logger.error(f"Fehler beim Stimme holen: {e}", exc_info=True) # <--- NEU
-            return "v2/de_speaker_0"
+            logger.error(f"Speichern fehlgeschlagen: {e}", exc_info=True)
+            raise TTSServiceError(f"IO Fehler: {e}")
