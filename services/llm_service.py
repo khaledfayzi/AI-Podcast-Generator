@@ -9,180 +9,183 @@
 #   - Später: Sendet den Prompt an die OpenAI API und gibt das bereinigte Skript zurück.
 #   - Trennung von System-Prompt (Rollenbeschreibung) und User-Prompt.
 
-import requests 
+from .exceptions import LLMServiceError
+import requests
+import os
 
 class LLMService:
     """
         Service für Textgenerierung mit einem Sprachmodell.
         - Baut System- und User-Prompts
-        - Sendet Anfrage an Ollama
+        - Sendet Anfrage an Gemini
         - Gibt reinen Podcast-Text zurück
     """
-        
 
-    def __init__(self, model_name: str = "llama3", use_dummy: bool = False):
+    def __init__(self, model: str = "models/gemini-2.5-flash",use_dummy=False):
         """
         Initialisiert den Service.
-        model_name: welches Ollama-Modell benutzt wird
+        model_name: welches gemini modell benutzt wird
         use_dummy: wenn True → KI wird NICHT gefragt, Dummy-Text wird benutzt
         """
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        if not self.api_key:
+            raise LLMServiceError("Umgebungsvariable LLM_API_KEY fehlt.")
 
-        self.model = model_name
-        self.use_dummy = use_dummy
-        self.api_url = "http://localhost:11434/api/chat"   # OLLAMA-URL
+        self.model = model
+        self.url = f"https://generativelanguage.googleapis.com/v1/{self.model}:generateContent?key={self.api_key}"
+        self.use_dummy=use_dummy
 
-
-
-    def _system_prompt(self,config:dict) ->str:
+    # ---------------------------------------------------------
+    # SYSTEM PROMPT
+    # ---------------------------------------------------------
+    def _system_prompt(self) -> str:
         """
         Baut den System-Prompt.
         Dieser beschreibt der KI *wie* sie schreiben soll.
         (Sprache, Schreibstil)
         """
 
-        language=config.get("language","de")
-        style=config.get("style","neutral")
+        return (
+            "Du bist ein professioneller deutscher Podcast-Autor.\n"
+            "Regeln:\n"
+            "- Schreibe ausschließlich auf Deutsch.\n"
+            "- Jede Sprecherzeile darf höchstens 1–2 Sätze enthalten.\n"
+            "- Verwende kurze, klare Sprecherabschnitte für eine natürliche TTS-Stimme.\n"
+            "- Keine langen Monologe: längere Inhalte in mehrere Sprecherzeilen aufteilen.\n"
+            "- Nur Sprecherlabels 'M:' (Moderator) und 'F:' (Frau/Expertin).\n"
+            "- Keine Regieanweisungen wie [Musik], [Intro], [Klatschen].\n"
+            "- Kein Markdown, keine Listen, keine Bullet-Points.\n"
+            "- Nur normaler Text.\n"
+            "- Emotionen nur als (lacht) oder (seufzt).\n"
+            "- Der Text muss TTS-freundlich sein.\n"
+            "WICHTIG: Die Ausgabe MUSS diese drei Überschriften enthalten – exakt so geschrieben:\n"
+            "INTRO\n"
+            "HAUPTTEIL\n"
+            "OUTRO\n"
+            "Wenn eine dieser drei Überschriften fehlt, ist die Ausgabe UNGÜLTIG.\n"
+    )
 
-        if language=="en":
-            base="You are a professional English podcast author. Write clearly and well-structured."
-        else:
-            base = (
-                "Du bist ein professioneller deutschsprachiger Podcast-Autor. "
-                "DU MUSST ALLES AUSSCHLIESSLICH AUF DEUTSCH SCHREIBEN. "
-                "Kein einziger englischer Satz ist erlaubt. "
-            )
-
-        if language=="en":
-            if style=="komisch":
-                style_text="Your writing style should be funny and humorous."
-            elif style=="freudig":
-                style_text="Your writing style should be happy, bright and uplifting."
-            elif style=="gechillt":
-                style_text="Your writing style should be relaxed, calm and casual."
-            else:
-                style_text="Keep a neutral and factual tone."
-        else:
-            if style=="komisch":
-                style_text="Dein Schreibstil soll komisch und humorvoll sein."
-            elif style=="freudig":
-                style_text="Dein Schreibstil soll freudig, fröhlich und positiv sein."
-            elif style=="gechillt":
-                style_text="Dein Schreibstil soll gechillt, entspannt und locker sein."
-            else:
-                style_text="Halte einen neutralen und sachlichen Ton."
-
-        return f"{base} {style_text}"
+    def _dummy_output(self, thema: str):
+        """
+        Gibt Test-Text zurück, falls kein echtes KI-Modell genutzt wird.
+        Hilfreich für lokale Tests ohne KI.
+        """
+        return (
+            f"INTRO\nDummy Podcast über {thema}.\n"
+            f"HAUPTTEIL\nDies ist eine Testausgabe.\n"
+            f"OUTRO\nDas war unser Podcast – bis zum nächsten Mal!"
+        )
 
 
-       
-    
-
-    def _user_prompt(self, thema:str,config:dict) ->str:
-
+    # ---------------------------------------------------------
+    # USER PROMPT
+    # ---------------------------------------------------------
+    def _user_prompt(self, thema: str, config: dict) -> str:
         """
         Baut den User-Prompt.
         Dieser enthält *was* geschrieben werden soll:
         Thema, Dauer, Sprecher, PDF-Inhalt usw.
         """
+        dauer = config.get("dauer", 2)
+        speakers = config.get("speakers", 2)
+        wortzahl = dauer * 150  
 
-        dauer=config.get("dauer",15)
-        speakers=config.get("speakers",1)
-        pdf_text=config.get("pdf_text","")
-        roles=config.get("roles",{})
-        speaker1=roles.get("speaker1","Moderator")
-        speaker2=roles.get("speaker2","Experte")
+        base = (
+            f"Erstelle ein Podcast-Skript zum Thema '{thema}'.\n"
+            f"Der Text soll ungefähr {dauer} Minuten dauern (ca. {wortzahl} Wörter).\n\n"
+        )
 
-        prompt=(f"Erstelle ein Podcast-Skript über das Thema {thema}. "
-        f"Der Podcast soll etwa {dauer} Minuten dauern. ")
-        
-        if speakers==2:
-            prompt += (f"Schreibe einen Dialog zwischen {speaker1} und {speaker2}. ")
+        if speakers == 2:
+            base += (
+                "Verwende diese Sprecher:\n"
+                "- M: Moderator (männlich)\n"
+                "- F: Expertin (weiblich)\n\n"
+                "Nutze ausschließlich diese Labels: M: und F:\n\n"
+            )
+        else:
+            base += (
+                "Es gibt nur einen Sprecher: M: Moderator.\n"
+                "Nutze ausschließlich das Label M:\n\n"
+            )
 
-        else :
-            prompt +="Schreibe das Skript für einen einzelnen Sprecher. "
+        base += (
+            "Die Struktur MUSS so aussehen:\n"
+            "INTRO\n"
+            "M: Begrüßung & Einstieg\n\n"
+            "HAUPTEIL\n"
+            "M: Erklärungen\n"
+        )
 
-        if pdf_text:
-            prompt +=f"Verwende zusätzlich folgenden Text:\n{pdf_text}\n"
-        prompt +="Strukturiere das Skript in: Intro, Hauptteil und Outro."
+        if speakers == 2:
+            base += "F: Antworten & Ergänzungen\n"
 
-        return prompt
-    
+        base += (
+            "\nOUTRO\n"
+            "M: Zusammenfassung\n"
+        )
 
-    def _build_prompt(self, thema :str,config:dict)-> str:
+        if speakers == 2:
+            base += "F: kurzer Abschlusskommentar\n"
+
+        base += (
+            "\nDer letzte Satz MUSS sein:\n"
+            "'Das war unser Podcast – bis zum nächsten Mal!'\n"
+        )
+
+        return base
+
+    # ---------------------------------------------------------
+    # Anfrage an Google Gemini
+    # ---------------------------------------------------------
+    def _ask_gemini(self, prompt: str) -> str:
         """
-        Kombiniert System-Prompt + User-Prompt
-        in das Format, das der Chat-API-Endpunkt erwartet.
-        """
-
-        return [
-            {"role": "system", "content": self._system_prompt(config)},
-            {"role": "user",   "content": self._user_prompt(thema, config)}
-        ]
-    
-
-
-    def _dummy_output(self,thema:str)-> str:
-        """
-        Gibt Test-Text zurück, falls kein echtes KI-Modell genutzt wird.
-        Hilfreich für lokale Tests ohne KI.
-        """
-
-        return(f"==Dummy Podcast über {thema}==\n"
-               "Dies ist eine Testausgabe..."
-               )
-    
-
-    def _ask_ollama(self, messages) -> str:
-        """
-        Sendet die Anfrage an Ollama und gibt den generierten Text zurück.
+        Sendet die Anfrage an Gemini und gibt den generierten Text zurück.
         Behandelt auch Fehlerfälle und unterschiedliche Antwortformate.
         """
 
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "stream": False,
+        body = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}]
         }
 
+        # Netzwerkfehler abfangen
         try:
-            res = requests.post(self.api_url, json=payload)
-            res.raise_for_status()
-            data = res.json()
-            if "message" in data:
-                return data["message"]["content"]
-            if "messages" in data:
-                return data["messages"][-1]["content"]
+            response = requests.post(self.url, json=body, timeout=15)
+        except requests.RequestException as e:
+            raise LLMServiceError(f"Netzwerkfehler beim Zugriff auf Gemini: {e}")
 
-            raise KeyError("Kein gültiges Antwortformat gefunden.")
+        # Falscher API-Status
+        if response.status_code != 200:
+            raise LLMServiceError(f"Gemini API-Fehler: HTTP {response.status_code} - {response.text}")
 
-        except Exception as e:
-            print(f"[LLMService] OLLAMA Fehler: {e}")
-            return None
+        data = response.json()
 
-   
-    def generate_script(self, thema: str, config: dict | None = None) -> str:
+        # Parsing-Fehler abfangen
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception:
+            raise LLMServiceError("Gemini-Antwort konnte nicht gelesen werden.")
+    # ---------------------------------------------------------
+    # PUBLIC METHOD
+    # ---------------------------------------------------------
+
+    def generate_script(self, thema: str, config: dict) -> str:
         """
         Öffentliche Methode.
           Baut den Prompt
           Fragt das KI-Modell an
           Gibt das fertige Podcast-Skript zurück
         """
-
-        if config is None:
-            config={}
-
-        #Dummy?
+        # Dummy-Modus
         if self.use_dummy:
             return self._dummy_output(thema)
-        
+
         #Prompt bauen
-        messages=self._build_prompt(thema,config)
+        prompt = self._system_prompt() + "\n" + self._user_prompt(thema, config)
 
-        #Echte Anfrage
-        response = self._ask_ollama(messages)
-
-        #falls Ollama nicht läuft
-        if response is None:
+        # Versuch, echte KI anzufragen
+        try:
+            return self._ask_gemini(prompt)
+        except LLMServiceError as e:
+            print("[WARNUNG] KI-Fehler → Dummy wird verwendet:", e)
             return self._dummy_output(thema)
-        return response
 
