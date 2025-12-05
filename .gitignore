@@ -1,7 +1,25 @@
-venv/
+# --- WICHTIG: Sicherheit & Umgebung ---
 .venv/
+*.env
+
+# --- Python Standard ---
 __pycache__/
 *.pyc
-.env
-*.env
+
+# --- IDE / Editor Einstellungen (optional aber empfohlen) ---
+.vscode/
+.idea/
 .DS_Store
+
+# --- Projekt-spezifisch (Generierte Dateien) ---
+# Wir wollen keine generierten MP3s oder Logs im Repo haben
+output/
+*.mp3
+*.log
+db_data/
+
+# --- DOKUMENTATION (falls das Wiki nicht ins Repo soll) ---
+doctemplate.wiki
+
+
+.json!/team04/services/output/
