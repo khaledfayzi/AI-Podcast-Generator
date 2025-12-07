@@ -9,6 +9,7 @@ __pycache__/
 # --- IDE / Editor Einstellungen (optional aber empfohlen) ---
 .vscode/
 .idea/
+.idea
 .DS_Store
 
 # --- Projekt-spezifisch (Generierte Dateien) ---
@@ -20,8 +21,6 @@ db_data/
 
 # --- DOKUMENTATION (falls das Wiki nicht ins Repo soll) ---
 doctemplate.wiki
-
-.idea
 
 
 .json!/team04/services/output/
