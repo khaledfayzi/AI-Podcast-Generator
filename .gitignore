@@ -21,5 +21,7 @@ db_data/
 # --- DOKUMENTATION (falls das Wiki nicht ins Repo soll) ---
 doctemplate.wiki
 
+.idea
+
 
 .json!/team04/services/output/
