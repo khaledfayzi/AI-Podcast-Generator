@@ -1,8 +1,10 @@
 import os
+import urllib
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sshtunnel import SSHTunnelForwarder
+from models import Base
 from flask import g
 
 engine = None
@@ -50,7 +52,8 @@ def init_db_connection():
     database_url = f"mysql+pymysql://{db_user}:{db_password}@{connection_host}:{connection_port}/{db_name}"
     engine = create_engine(database_url, echo=False)
 
-    # TODO Hier evtl. noch Tabellen anlegen
+    # Tabellen anlegen, falls sie noch nicht existieren
+    Base.metadata.create_all(bind=engine)
 
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     print("Datenbank verbunden!")
