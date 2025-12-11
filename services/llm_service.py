@@ -133,6 +133,73 @@ class LLMService:
         )
 
         return base
+    
+
+    # ---------------------------------------------------------
+    # SSML Format
+    # ---------------------------------------------------------
+    
+    def _to_ssml(self, text: str) -> str:
+        """
+        Wandelt das generierte Podcast-Skript in SSML um.
+       - Entfernt leere Zeilen
+       - Trennt Sprecher korrekt in <voice>-Blöcke
+       - Platziert Überschriften sauber in <p>-Tags
+        """
+        #stimme defenieren (weiblich oder männlich)
+        voices = {
+            "M:": "de-DE-Wavenet-D",  # männlich
+            "F:": "de-DE-Wavenet-E",  # weiblich
+        }
+
+        ssml = ["<speak>"]
+        current_voice = None
+        #Der generierte Text wird Zeile für Zeile gelesen
+        for raw_line in text.split("\n"):
+            line = raw_line.strip()
+
+            # Leerzeilen ignorieren
+            if not line:
+                continue
+
+            # Abschnittsüberschriften wie INTRO / HAUPTTEIL / OUTRO
+            if line in ("INTRO", "HAUPTTEIL", "OUTRO"):
+                # Aktuelle Stimme schließen
+                if current_voice:
+                    ssml.append("</voice>")
+                    current_voice = None
+
+                ssml.append(f"<p><s>{line}</s></p>")
+                continue
+
+            # Sprecherzeile erkennen: M: oder F:
+            if line[:2] in ("M:", "F:"):
+                speaker = line[:2]
+                spoken_text = line[3:].strip()
+
+                # Stimme wechseln
+                if current_voice != speaker:
+                    if current_voice:
+                        ssml.append("</voice>")
+
+                    ssml.append(f"<voice name=\"{voices[speaker]}\">")
+                    current_voice = speaker
+
+                # Satz hinzufügen
+                if spoken_text:
+                    ssml.append(f"<s>{spoken_text}</s>")
+                continue
+
+            # Falls Text ohne Sprecher → normaler Satz
+            ssml.append(f"<s>{line}</s>")
+
+        # Voice-Tag schließen, falls offen
+        if current_voice:
+            ssml.append("</voice>")
+
+        ssml.append("</speak>")
+        return "\n".join(ssml)
+
 
     # ---------------------------------------------------------
     # Anfrage an Google Gemini
@@ -177,15 +244,19 @@ class LLMService:
         """
         # Dummy-Modus
         if self.use_dummy:
-            return self._dummy_output(thema)
+            text=self._dummy_output(thema)
+            return self._to_ssml(text)
 
         #Prompt bauen
         prompt = self._system_prompt() + "\n" + self._user_prompt(thema, config)
 
         # Versuch, echte KI anzufragen
         try:
-            return self._ask_gemini(prompt)
+            text=self._ask_gemini(prompt)
+            
         except LLMServiceError as e:
             print("[WARNUNG] KI-Fehler → Dummy wird verwendet:", e)
-            return self._dummy_output(thema)
+            text=self._dummy_output(thema)
+
+        return self._to_ssml(text)
 
