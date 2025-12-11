@@ -1,6 +1,5 @@
 import uuid
 import nltk
-import os
 import logging
 import io
 import time

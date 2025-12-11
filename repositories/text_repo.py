@@ -1,4 +1,4 @@
-from models import Textbeitrag
+from ..models import Textbeitrag
 from .base_repo import BaseRepo
 
 class TextRepo(BaseRepo):
