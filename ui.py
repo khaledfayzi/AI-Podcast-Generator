@@ -22,8 +22,6 @@ def navigate(target):
 
     return tuple(results)
 
-def anfdsf():
-    pass
 
 with gr.Blocks() as demo:
     gr.Markdown("# KI Podcast Generator")
@@ -111,7 +109,6 @@ with gr.Blocks() as demo:
     pages = [home, skript_bearbeiten, deine_podcasts, audio_player_col]
 
     btn_zuruck_deinepodcasts.click(fn=lambda: navigate("skript bearbeiten"),
-                                   fn=anfdsf,
                                    inputs=None,
                                    outputs=pages)
 
