@@ -12,10 +12,9 @@ from pydub import AudioSegment
 # Eigene Imports
 from Interfaces.interface_tts_service import ITTSService
 from models import (PodcastStimme)
-from exceptions import TTSServiceError
+from .exceptions import TTSServiceError
 
 from database import get_db
-from sqlalchemy import text
 
 # Lädt Umgebungsvariablen (z.B. GOOGLE_APPLICATION_CREDENTIALS)
 load_dotenv()

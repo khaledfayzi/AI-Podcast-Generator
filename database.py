@@ -26,6 +26,7 @@ def init_db_connection():
     db_port = int(os.getenv("DB_PORT", 3306))
     ssh_host = os.getenv("SSH_HOST")
     ssh_user = os.getenv("SSH_USER")
+    ssh_password = os.getenv("SSH_PASSWORD")
     ssh_key_path = os.getenv("SSH_KEY_PATH")
     connection_host = os.getenv("DB_HOST")
     connection_port = db_port
@@ -37,6 +38,7 @@ def init_db_connection():
                 (ssh_host, int(os.getenv("SSH_PORT", 22))),
                 ssh_username=ssh_user,
                 ssh_pkey=ssh_key_path,
+                ssh_password=ssh_password,
                 remote_bind_address=('127.0.0.1', db_port)
             )
             tunnel.start()
