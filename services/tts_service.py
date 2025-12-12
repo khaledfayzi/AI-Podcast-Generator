@@ -10,8 +10,8 @@ from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 from pydub import AudioSegment
 
 # Eigene Imports
-from team04.Interfaces.interface_tts_service import ITTSService
-from team04.models import PodcastStimme
+from Interfaces.interface_tts_service import ITTSService
+from models import PodcastStimme
 from exceptions import TTSServiceError
 
 # Lädt Umgebungsvariablen (z.B. GOOGLE_APPLICATION_CREDENTIALS)
