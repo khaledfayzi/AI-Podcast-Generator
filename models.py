@@ -171,6 +171,8 @@ class PodcastStimme(Base):
     # Hat gefehlt
     name = Column(String(50), nullable=False, default="Max")
 
+    ttsVoice = Column(String(50), nullable=True, default="de-DE-Chirp3-HD-Enceladus")
+
     rolle = Column(String(100), nullable=False)
     emotion = Column(String(100), nullable=False)
     geschlecht = Column(String(50), nullable=False)
