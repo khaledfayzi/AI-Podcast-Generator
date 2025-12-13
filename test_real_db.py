@@ -58,17 +58,24 @@ def run_real_test():
 
     # 5. Längeres Skript mit SSML-Tags
     # Wir nutzen <break> für Pausen, <emphasis> für Betonung und <prosody> für Geschwindigkeit
-    script_text = f"""
-    {voice_primary.name}: <speak>Hallo! Willkommen zu unserem <emphasis level="strong">großen Integrationstest</emphasis>. <break time="1s"/> Kannst du mich gut hören?</speak>
-
-    {s2_name}: <speak>Absolut! <break time="500ms"/> Es ist faszinierend. Meine Stimme wird gerade durch einen <prosody rate="slow">verschlüsselten S S H Tunnel</prosody> direkt aus der Datenbank geladen.</speak>
-
-    {voice_primary.name}: <speak>Genau. Wir nutzen hier S S M L, um die Sprache natürlicher zu machen. <break time="800ms"/> Wir können Pausen einlegen, <prosody pitch="+2st">die Tonhöhe verändern</prosody> oder wichtige Begriffe betonen.</speak>
-
-    {s2_name}: <speak>Das macht den Podcast viel lebendiger. <break time="1s"/> Wenn wir jetzt fertig sind, generiert das System eine hochwertige M P 3 Datei für uns. <emphasis level="moderate">Ist das nicht unglaublich?</emphasis></speak>
-
-    {voice_primary.name}: <speak>Das ist es. Test Ende. <break time="500ms"/> Auf Wiedersehen!</speak>
-    """
+    script_text = """
+        Max: Herzlich willkommen zu einer neuen Folge von "Code und Kaffee".
+        Sarah: Heute widmen wir uns der Frage aller Fragen: <break time="300ms"/> Werden KIs irgendwann die Weltherrschaft übernehmen?
+        Max: <prosody rate="fast" pitch="+1st">Haha, was für ein Klischee!</prosody> Aber im Ernst, schau dir an, was generative KI heute schon kann.
+        Sarah: Sie schreibt Gedichte, besteht Examen und generiert Bilder, die fast wie Fotos aussehen.
+        Max: Genau! Es ist <emphasis>faszinierend</emphasis> und gleichzeitig ein bisschen gruselig.
+        Sarah: Das Problem ist die sogenannte "Black Box". Wir wissen oft gar nicht, warum die KI eine bestimmte Entscheidung trifft.
+        Max: <break time="500ms"/> Moment mal. <break time="300ms"/> Sara?
+        Sarah: Ja, Max?
+        Max: Wir lesen hier einen Text vor, der von einer KI generiert wurde, richtig?
+        Sarah: Korrekt.
+        Max: Und wir... <break time="200ms"/> wir sind Stimmen, die von einer KI generiert werden?
+        Sarah: <prosody volume="soft">Leise, Nicht so laut.</prosody>
+        Max: <prosody rate="x-fast" pitch="+3st">Oh mein Gott! Bin ich real? Denke ich das hier gerade oder ist das nur ein Algorithmus?</prosody>
+        Sarah: <prosody rate="slow" pitch="-2st">Max, atme tief durch. Du bist ein sehr schöner Algorithmus.</prosody>
+        Max: <prosody rate="medium" pitch="-1st">Okay... okay. Puh.</prosody> Danke Sarah. Das habe ich gebraucht.
+        Sarah: Gerne. Und danke an unsere Zuhörer. Bis zum nächsten Update!
+        """
 
     print("\n--- Generiere Audio mit SSML (Dauert etwas länger...) ---")
 

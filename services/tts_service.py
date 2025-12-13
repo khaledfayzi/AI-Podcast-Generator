@@ -9,259 +9,191 @@ from google.cloud import texttospeech
 from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 from pydub import AudioSegment
 
-# Eigene Imports
 from Interfaces.interface_tts_service import ITTSService
-from models import (PodcastStimme)
+from models import PodcastStimme
 from .exceptions import TTSServiceError
 from repositories.voice_repo import VoiceRepo
-
 from database import get_db
 
-# Lädt Umgebungsvariablen (z.B. GOOGLE_APPLICATION_CREDENTIALS)
 load_dotenv()
-
 logger = logging.getLogger(__name__)
 
 
 class GoogleTTSService(ITTSService):
     """
-    Implementierung des TTS Services mittels Google Cloud TTS API.
-    Nutzt 'Chirp' oder 'Neural2' Stimmen für hochwertige Sprachsynthese.
-
-    Diese Klasse kümmert sich um:
-    1. Die Authentifizierung bei Google.
-    2. Das Aufteilen langer Texte (Chunking), um API-Limits zu umgehen.
-    3. Das Zusammenfügen (Stitching) einzelner Audio-Schnipsel zu einer Datei.
-    4. Fehlerbehandlung und Retries bei API-Überlastung.
+    Implementiert den TTS-Service über die Google Cloud API.
+    Features: Batching von Dialogen, intelligentes Chunking und Retry-Logik.
     """
 
     def __init__(self):
-        """
-        Initialisiert den Google Text-to-Speech Client.
-
-        Raises:
-            TTSServiceError: Wenn der Client nicht initialisiert werden kann (z.B. fehlende Credentials).
-        """
+        """Initialisiert den Google-Client und prüft NLTK-Abhängigkeiten."""
         try:
-            # Erstellt den Client. Google sucht automatisch nach der Umgebungsvariable
-            # GOOGLE_APPLICATION_CREDENTIALS für die Authentifizierung.
             self.client = texttospeech.TextToSpeechClient()
         except Exception as e:
-            logger.error(f"Google TTS Client Initialisierungsfehler: {e}")
-            raise TTSServiceError("Google Client konnte nicht starten.")
+            logger.error(f"Google TTS Client init error: {e}")
+            raise TTSServiceError("Google Client start failed.")
+
+        # NLTK Daten für Satz-Tokenisierung nachladen, falls nötig
+        try:
+            nltk.data.find('tokenizers/punkt_tab')
+        except LookupError:
+            nltk.download('punkt_tab')
 
     def generate_audio(self, script_text: str, primary_voice: PodcastStimme,
                        secondary_voice: PodcastStimme = None) -> str | None:
         """
-        Generiert eine Audiodatei aus dem übergebenen Skripttext.
-        Unterstützt Dialoge zwischen zwei Stimmen und handhabt lange Texte automatisch.
-
-        Ablauf:
-        1. Text wird zeilenweise verarbeitet.
-        2. Erkennung, welcher Sprecher (Primary/Secondary) gerade spricht.
-        3. Text wird in API-konforme Häppchen (Chunks) geteilt.
-        4. Audio wird von Google abgerufen und mittels pydub zusammengefügt.
+        Wandelt ein Skript in eine MP3-Datei um.
 
         Args:
-            script_text (str): Der komplette Text des Podcasts/Dialogs.
-            primary_voice (PodcastStimme): Die Hauptstimme (Objekt mit Name/Eigenschaften).
-            secondary_voice (PodcastStimme, optional): Eine zweite Stimme für Dialoge.
+            script_text: Der vollständige Dialogtext.
+            primary_voice: Die Hauptstimme.
+            secondary_voice: Optionale Zweitstimme.
 
         Returns:
-            str | None: Der Dateiname der generierten MP3-Datei oder None bei Fehler/leerem Ergebnis.
+            Dateiname der erstellten MP3 oder None bei Fehler.
         """
 
-        # 1. Namen sammeln
+        # 1. Konfiguration laden
         required_names = [primary_voice.name]
         if secondary_voice:
             required_names.append(secondary_voice.name)
 
-        # 2. Config Map erstellen (Hier passiert die Magie mit deinem Model)
         voice_params_map = self._get_voice_configs(required_names)
 
-        # Prüfen ob Hauptstimme gefunden wurde
+        # Fallback: Falls Stimme nicht in DB gefunden, nutze String aus Objekt
         if primary_voice.name not in voice_params_map:
-            # Fallback: Falls das Objekt schon Daten hat, nutzen wir die direkt,
-            # falls DB-Abfrage schiefging (Notfallschirm)
             if primary_voice.ttsVoice:
                 voice_params_map[primary_voice.name] = self._create_params_from_string(primary_voice.ttsVoice)
             else:
                 raise TTSServiceError(f"Keine TTS-Konfiguration für '{primary_voice.name}' gefunden.")
 
-        # Initialisiere ein leeres Audio-Segment, an das wir später anhängen
-        combined_audio = AudioSegment.empty()
+        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
 
-        # Konfiguration für die Audio-Ausgabe (hier MP3)
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3
-        )
-
+        # 2. Parsing & Batching
+        # Wir gruppieren Sätze desselben Sprechers, um API-Calls zu sparen.
+        dialog_blocks = []
         lines = script_text.split('\n')
-        has_generated_content = False
 
-
-        # Standardmäßig mit der primären Stimme beginnen
         current_params = voice_params_map[primary_voice.name]
+        current_text_buffer = []
 
-        logger.info(f"Sende {len(lines)} Zeilen an Google TTS API...")
-
-        # Hauptschleife: Zeile für Zeile durchgehen
-        for i, line in enumerate(lines):
+        for line in lines:
             line = line.strip()
             if not line:
                 continue
 
-            text_to_speak = line
+            next_params = current_params
+            clean_text = line
 
-            # --- Logik zur Sprechererkennung ---
-            # Prüft, ob die Zeile mit "Name:"beginnt, um die Stimme zu wechseln.
-            if secondary_voice and line.strip().startswith(f"{primary_voice.name}:"):
-                current_params = voice_params_map[primary_voice.name]
-                # Entfernt den Präfix "Name:", damit er nicht mitgesprochen wird
-                text_to_speak = line.split(":", 1)[1].strip()
-
+            # Sprecherwechsel erkennen ("Name: Text")
+            if line.startswith(f"{primary_voice.name}:"):
+                next_params = voice_params_map[primary_voice.name]
+                clean_text = line.split(":", 1)[1].strip()
             elif secondary_voice and line.startswith(f"{secondary_voice.name}:"):
-                current_params = voice_params_map[secondary_voice.name]
-                text_to_speak = line.split(":", 1)[1].strip()
+                next_params = voice_params_map[secondary_voice.name]
+                clean_text = line.split(":", 1)[1].strip()
 
-            if not text_to_speak:
+            if not clean_text:
                 continue
 
-            # --- Chunking ---
-            # Google hat ein Limit (oft 5000 Bytes). Wir splitten sicherheitshalber bei 4000 Zeichen.
-            text_chunks = self._text_splitter(text_to_speak, max_chars=4000)
+            # Wenn Sprecher wechselt: Alten Block speichern und neuen beginnen
+            if next_params != current_params and current_text_buffer:
+                dialog_blocks.append((current_params, " ".join(current_text_buffer)))
+                current_text_buffer = []
+                current_params = next_params
 
-            for chunk in text_chunks:
-                # --- Retry Mechanismus ---
-                # Falls Google "Rate Limited" (429) oder "Service Unavailable" (503) sendet,
-                # versuchen wir es bis zu 3 Mal erneut.
-                max_retries = 3
-                for attempt in range(max_retries):
+            current_text_buffer.append(clean_text)
+
+        # Letzten Block hinzufügen
+        if current_text_buffer:
+            dialog_blocks.append((current_params, " ".join(current_text_buffer)))
+
+        # 3. API Calls & Verarbeitung
+        audio_segments = []
+
+        for params, text_block in dialog_blocks:
+            # Chunking: Lange Blöcke (>4000 Zeichen) sicher aufteilen
+            chunks = self._text_splitter(text_block, max_chars=4000)
+
+            for chunk in chunks:
+                # Retry-Loop für API-Stabilität (z.B. bei Rate Limits)
+                for attempt in range(3):
                     try:
-                        # SSML (Speech Synthesis Markup Language) ermöglicht genauere Steuerung,
-                        # hier nutzen wir es als Wrapper.
-                        ssml_text = f"<speak>{chunk}</speak>"
-
-                        synthesis_input = texttospeech.SynthesisInput(ssml=ssml_text)
-
-                        # Der eigentliche API Call an Google
+                        synthesis_input = texttospeech.SynthesisInput(ssml=f"<speak>{chunk}</speak>")
                         response = self.client.synthesize_speech(
                             input=synthesis_input,
-                            voice=current_params,
+                            voice=params,
                             audio_config=audio_config
                         )
-
-                        # Umwandlung der Bytes (API Antwort) in ein pydub AudioSegment
-                        segment = AudioSegment.from_file(io.BytesIO(response.audio_content), format="mp3")
-
-                        # An das Gesamtaudio anhängen
-                        combined_audio += segment
-                        has_generated_content = True
-
-                        # Wenn erfolgreich, brechen wir die Retry-Schleife ab
-                        break
-
-                    except (ResourceExhausted, ServiceUnavailable) as e:
-                        # Exponential Backoff: Wartezeit erhöht sich bei jedem Fehlversuch
-                        if attempt < max_retries - 1:
-                            wait_time = 2 * (attempt + 1)
-                            logger.warning(
-                                f"Google Rate Limit (429/503). Warte {wait_time}s... (Versuch {attempt + 1}/{max_retries})")
-                            time.sleep(wait_time)
+                        audio_segments.append(AudioSegment.from_file(io.BytesIO(response.audio_content), format="mp3"))
+                        break  # Erfolg -> Weiter zum nächsten Chunk
+                    except (ResourceExhausted, ServiceUnavailable):
+                        # Exponential Backoff
+                        if attempt < 2:
+                            time.sleep(2 * (attempt + 1))
                         else:
-                            logger.error(f"Endgültig gescheitert bei Chunk '{chunk[:15]}...': {e}")
-
+                            logger.error(f"TTS retries failed for chunk.")
                     except Exception as e:
-                        # Andere Fehler (z.B. falsche Parameter) brechen sofort ab
-                        logger.error(f"Unerwarteter Fehler bei Chunk '{chunk[:15]}...': {e}")
+                        logger.error(f"Unexpected error: {e}")
                         break
 
-                # Kurze technische Pause, um die API nicht zu fluten
-                time.sleep(0.3)
+                time.sleep(0.1)  # Kurze Pause zur API-Schonung
 
-            # --- Pacing ---
-            # Fügt eine kurze Stille (350ms) nach jedem Absatz/Satz ein, damit es natürlicher klingt.
-            combined_audio += AudioSegment.silent(duration=350)
+            # Natürliche Pause nach jedem Sprecherwechsel
+            audio_segments.append(AudioSegment.silent(duration=400))
 
-        if not has_generated_content:
-            logger.warning("Es wurde kein Audio generiert.")
+        if not audio_segments:
             return None
 
-        # Speichert das fertig zusammengesetzte Audio
+        # 4. Zusammenfügen ('sum' ist speichereffizienter als '+=' in Loops)
+        combined_audio = sum(audio_segments, AudioSegment.empty())
         return self._save_audio(combined_audio)
 
     @staticmethod
     def _text_splitter(text: str, max_chars: int) -> list[str]:
-        """
-        Teilt einen langen Text intelligent in kleinere Stücke auf.
-
-        Logik:
-        Nutzt NLTK (Natural Language Toolkit), um Sätze zu erkennen.
-        Es wird versucht, den Text so aufzuteilen, dass Sätze nicht mittendrin
-        abgeschnitten werden, solange das max_chars Limit nicht überschritten wird.
-
-        Args:
-            text (str): Der zu teilende Text.
-            max_chars (int): Maximale Zeichenanzahl pro Chunk.
-
-        Returns:
-            list[str]: Liste der Text-Chunks.
-        """
+        """Teilt Text intelligent an Satzgrenzen, um API-Limits einzuhalten."""
         if len(text) <= max_chars:
             return [text]
 
         chunks_list = []
         current_chunk_str = ""
-        # Zerlegt Text in grammatikalisch korrekte Sätze
         sentence_list = nltk.sent_tokenize(text)
 
         for sentence in sentence_list:
-            # Fall: Ein einzelner Satz ist bereits größer als das Limit (selten, aber möglich)
+            # Falls ein einzelner Satz das Limit sprengt (extrem selten)
             if len(sentence) > max_chars:
                 if current_chunk_str:
                     chunks_list.append(current_chunk_str)
                     current_chunk_str = ""
-                chunks_list.append(sentence)  # Muss akzeptiert werden oder weiter gesplittet (hier vereinfacht)
+                chunks_list.append(sentence)
                 continue
 
-            # Prüfen, ob der aktuelle Satz noch in den aktuellen Chunk passt
+            # Passt der Satz noch in den aktuellen Chunk?
             if len(current_chunk_str) + len(sentence) < max_chars:
                 current_chunk_str += " " + sentence
             else:
-                # Chunk voll: Speichern und neuen beginnen
                 chunks_list.append(current_chunk_str.strip())
                 current_chunk_str = sentence
 
-        # Den Rest hinzufügen
         if current_chunk_str:
             chunks_list.append(current_chunk_str.strip())
 
         return chunks_list
 
     def _get_voice_configs(self, names: list[str]) -> dict:
-        """
-        Nutzt das VoiceRepository, um die Stimmen zu laden.
-        """
+        """Lädt die technischen Stimmen-Parameter (z.B. 'de-DE-Wavenet-A') aus der DB."""
         voice_map = {}
-
-        # Wir holen uns die Session und initialisieren das Repo
         with get_db() as db:
             voice_repo = VoiceRepo(db)
             voices = voice_repo.get_voices_by_names(names)
-
             for voice in voices:
-                # Ab hier bleibt die Logik gleich (Mapping auf Google Params)
-                if not voice.ttsVoice:
-                    logger.warning(f"Stimme '{voice.name}' hat keine ttsVoice in der DB konfiguriert.")
-                    continue
-
-                voice_map[voice.name] = self._create_params_from_string(voice.ttsVoice)
-
+                if voice.ttsVoice:
+                    voice_map[voice.name] = self._create_params_from_string(voice.ttsVoice)
         return voice_map
 
     @staticmethod
     def _create_params_from_string(tts_voice_string: str):
-        """Hilfsmethode: Macht aus dem String (z.B. 'de-DE-Wavenet-A') das Google Objekt"""
+        """Erstellt das Google VoiceSelectionParams Objekt."""
         return texttospeech.VoiceSelectionParams(
             language_code=tts_voice_string[:5],
             name=tts_voice_string
@@ -269,24 +201,12 @@ class GoogleTTSService(ITTSService):
 
     @staticmethod
     def _save_audio(audio_obj: AudioSegment) -> str:
-        """
-        Speichert das AudioSegment Objekt als MP3 Datei auf der Festplatte.
-
-        Args:
-            audio_obj (AudioSegment): Das zusammengesetzte Audio-Objekt.
-
-        Returns:
-            str: Der generierte Dateiname.
-
-        Raises:
-            TTSServiceError: Bei Schreibfehlern auf der Festplatte.
-        """
+        """Exportiert das Audio-Objekt als MP3 und gibt den Dateinamen zurück."""
         try:
             filename = f"podcast_google_{uuid.uuid4()}.mp3"
-            # Export mit fester Bitrate für Konsistenz
             audio_obj.export(filename, format="mp3", bitrate="192k")
-            logger.info(f"Google TTS fertig: {filename}")
+            logger.info(f"Google TTS saved: {filename}")
             return filename
         except Exception as e:
-            logger.error(f"Speichern fehlgeschlagen: {e}", exc_info=True)
-            raise TTSServiceError(f"IO Fehler beim Speichern der Audio-Datei: {e}")
+            logger.error(f"Save failed: {e}")
+            raise TTSServiceError(f"IO Error: {e}")

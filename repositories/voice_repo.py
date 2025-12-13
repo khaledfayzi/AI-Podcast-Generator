@@ -1,4 +1,4 @@
-from repositories import BaseRepo
+from .base_repo import BaseRepo
 from sqlalchemy.orm import Session
 from models import PodcastStimme
 
