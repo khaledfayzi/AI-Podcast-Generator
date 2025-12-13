@@ -13,6 +13,7 @@ from pydub import AudioSegment
 from Interfaces.interface_tts_service import ITTSService
 from models import (PodcastStimme)
 from .exceptions import TTSServiceError
+from repositories.voice_repo import VoiceRepo
 
 from database import get_db
 
@@ -113,11 +114,12 @@ class GoogleTTSService(ITTSService):
             text_to_speak = line
 
             # --- Logik zur Sprechererkennung ---
-            # Prüft, ob die Zeile mit "Name:" beginnt, um die Stimme zu wechseln.
-            if secondary_voice and line.startswith(f"{primary_voice.name}:"):
+            # Prüft, ob die Zeile mit "Name:"beginnt, um die Stimme zu wechseln.
+            if secondary_voice and line.strip().startswith(f"{primary_voice.name}:"):
                 current_params = voice_params_map[primary_voice.name]
                 # Entfernt den Präfix "Name:", damit er nicht mitgesprochen wird
                 text_to_speak = line.split(":", 1)[1].strip()
+
             elif secondary_voice and line.startswith(f"{secondary_voice.name}:"):
                 current_params = voice_params_map[secondary_voice.name]
                 text_to_speak = line.split(":", 1)[1].strip()
@@ -238,29 +240,27 @@ class GoogleTTSService(ITTSService):
 
     def _get_voice_configs(self, names: list[str]) -> dict:
         """
-        Nutzt SQLAlchemy, um die Stimmen basierend auf den Namen zu laden.
+        Nutzt das VoiceRepository, um die Stimmen zu laden.
         """
         voice_map = {}
 
-        # Context Manager für die DB Session
+        # Wir holen uns die Session und initialisieren das Repo
         with get_db() as db:
-            # SQLAlchemy Query: SELECT * FROM PodcastStimme WHERE name IN (...)
-            voices = db.query(PodcastStimme).filter(PodcastStimme.name.in_(names)).all()
+            voice_repo = VoiceRepo(db)
+            voices = voice_repo.get_voices_by_names(names)
 
             for voice in voices:
-                # voice ist hier eine Instanz deiner Klasse PodcastStimme
-
-                # Sicherheitscheck, falls ttsVoice leer ist
+                # Ab hier bleibt die Logik gleich (Mapping auf Google Params)
                 if not voice.ttsVoice:
                     logger.warning(f"Stimme '{voice.name}' hat keine ttsVoice in der DB konfiguriert.")
                     continue
 
-                # Parameter erstellen
                 voice_map[voice.name] = self._create_params_from_string(voice.ttsVoice)
 
         return voice_map
 
-    def _create_params_from_string(self, tts_voice_string: str):
+    @staticmethod
+    def _create_params_from_string(tts_voice_string: str):
         """Hilfsmethode: Macht aus dem String (z.B. 'de-DE-Wavenet-A') das Google Objekt"""
         return texttospeech.VoiceSelectionParams(
             language_code=tts_voice_string[:5],
