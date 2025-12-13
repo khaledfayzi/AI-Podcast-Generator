@@ -113,28 +113,29 @@ class Quelldatei(Base):
 # --- 3. Konvertierung & Podcast ---
 
 class Konvertierungsauftrag(Base):
-    """
-    Steuert den Prozess der Audio-Erzeugung (LD06).
-    """
     __tablename__ = 'Konvertierungsauftrag'
-    auftragId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
+    auftragId = Column(Integer, primary_key=True, autoincrement=True)
 
-    # Fremdschlüssel
-    textId = Column(Integer, ForeignKey('Textbeitrag.textId'), comment="FK")
-    modellId = Column(Integer, ForeignKey('TTSModell.modellId'), comment="FK")
+    # ... andere Felder (textId, modellId) bleiben ...
+    textId = Column(Integer, ForeignKey('Textbeitrag.textId'))
+    modellId = Column(Integer, ForeignKey('TTSModell.modellId'))
+
+    # NEU: Der Auftrag zeigt auf die Stimmen, nicht umgekehrt!
+    hauptstimmeId = Column(Integer, ForeignKey('PodcastStimme.stimmeId'), nullable=True)
+    zweitstimmeId = Column(Integer, ForeignKey('PodcastStimme.stimmeId'), nullable=True)
 
     gewuenschteDauer = Column(Integer, nullable=False)
-    # Verwendung des Python Enum für den Status
     status = Column(Enum(AuftragsStatus), nullable=False)
 
-    # Beziehungen (n:1)
+    # Relationships
     textbeitrag = relationship("Textbeitrag", back_populates="konvertierungsauftraege")
     tts_modell = relationship("TTSModell", back_populates="konvertierungsauftraege")
 
-    # Beziehungen (1:n)
-    stimmen = relationship("PodcastStimme", back_populates="auftrag")
-    podcast = relationship("Podcast", back_populates="konvertierungsauftrag", uselist=False)  # 1:1
+    # Optional: Zugriff auf die Stimmen-Objekte
+    hauptstimme = relationship("PodcastStimme", foreign_keys=[hauptstimmeId])
+    zweitstimme = relationship("PodcastStimme", foreign_keys=[zweitstimmeId])
 
+    podcast = relationship("Podcast", back_populates="konvertierungsauftrag", uselist=False)
 
 class Podcast(Base):
     """
@@ -160,22 +161,16 @@ class Podcast(Base):
 
 class PodcastStimme(Base):
     """
-    Definiert eine Sprecherstimme und deren Rolle für einen Auftrag (LD07).
+    Katalog der verfügbaren Stimmen. Unabhängig von konkreten Aufträgen.
     """
     __tablename__ = 'PodcastStimme'
-    stimmeId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
+    stimmeId = Column(Integer, primary_key=True, autoincrement=True)
 
-    # Fremdschlüssel
-    auftragId = Column(Integer, ForeignKey('Konvertierungsauftrag.auftragId'), comment="FK")
+    # WICHTIG: Hier keine auftragId, keine Rolle, keine Emotion mehr!
+    # Das sind reine Stammdaten.
 
-    # Hat gefehlt
-    name = Column(String(50), nullable=False, default="Max")
+    name = Column(String(50), nullable=False, unique=True)  # z.B. "Hans"
+    ttsVoice = Column("tts_voice", String(50), nullable=False)  # z.B. "de-DE-Wavenet-A"
 
-    ttsVoice = Column("tts_voice",String(50), nullable=True, default="de-DE-Chirp3-HD-Enceladus")
-
-    rolle = Column(String(100), nullable=False)
-    emotion = Column(String(100), nullable=False)
-    geschlecht = Column(String(50), nullable=False)
-
-    # Beziehungen (n:1)
-    auftrag = relationship("Konvertierungsauftrag", back_populates="stimmen")
+    geschlecht = Column(String(50), nullable=False)  # "m" oder "w"
+    sprache = Column(String(10), default="de")

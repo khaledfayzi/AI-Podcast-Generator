@@ -13,3 +13,4 @@ sshtunnel
 flask
 google-cloud-texttospeech
 google-cloud-aiplatform
+pytest

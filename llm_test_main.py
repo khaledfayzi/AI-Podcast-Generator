@@ -24,7 +24,7 @@ def main():
         thema="KI im Alltag",
         config=config,
         hauptstimme="Max",
-        zweitstimme="Sara"   
+        zweitstimme="Sarah"
     )
 
     print("\n===== GENERIERTES PODCAST-SKRIPT =====\n")

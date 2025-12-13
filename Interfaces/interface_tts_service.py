@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from team04.models import PodcastStimme
+from models import PodcastStimme
 
 class ITTSService(ABC):
     """

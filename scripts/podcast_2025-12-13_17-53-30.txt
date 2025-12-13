@@ -1,0 +1,2 @@
+Max: Das ist ein Dummy-Testtext.
+Sara: Wir testen nur die Funktionalität.
