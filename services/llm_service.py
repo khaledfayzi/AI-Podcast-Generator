@@ -1,10 +1,11 @@
+from Interfaces.IServices import ILLMService
 from .exceptions import LLMServiceError
 import requests
 import os
 from dotenv import load_dotenv
 load_dotenv()
 
-class LLMService:
+class LLMService(ILLMService):
     """
         Service für Textgenerierung mit einem Sprachmodell.
         - Baut System- und User-Prompts

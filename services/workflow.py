@@ -16,26 +16,25 @@
 import logging
 from datetime import date
 
-from sqlalchemy import select
-
 # Relative Imports innerhalb des 'services' Pakets
-from llm_service import LLMService
+from services.llm_service import LLMService
 from repositories.voice_repo import VoiceRepo
-from tts_service import GoogleTTSService
-from models import (
+from services.tts_service import GoogleTTSService
+from Interfaces.IServices import IWorkflow
+from database.models import (
     AuftragsStatus,
     Konvertierungsauftrag,
-    PodcastStimme,
     Textbeitrag,
-    Podcast
+    Podcast,
+    PodcastStimme
 )
-from database import get_db
+from database.database import get_db
 
 # Absoluter Import zur Ausnahme, da sie wahrscheinlich außerhalb von 'services' liegt (z.B. in team04/exceptions.py)
 
 logger = logging.getLogger(__name__)
 
-class Workflow:
+class Workflow(IWorkflow):
     """
     Steuert den gesamten Prozess der Podcast-Generierung (Prompt -> Skript -> Audio).
     Kapselt die Geschäftslogik und sorgt für Transaktionssicherheit.

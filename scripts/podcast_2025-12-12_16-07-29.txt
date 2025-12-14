@@ -1,8 +1,0 @@
-<speak>
-<p><s>INTRO</s></p>
-<s>Dummy Podcast über KI im Alltag.</s>
-<p><s>HAUPTTEIL</s></p>
-<s>Dies ist eine Testausgabe.</s>
-<p><s>OUTRO</s></p>
-<s>Das war unser Podcast – bis zum nächsten Mal!</s>
-</speak>

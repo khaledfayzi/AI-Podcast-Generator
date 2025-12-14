@@ -1,4 +1,4 @@
-from models import Konvertierungsauftrag, AuftragsStatus
+from database.models import Konvertierungsauftrag, AuftragsStatus
 from .base_repo import BaseRepo
 
 class JobRepo(BaseRepo):

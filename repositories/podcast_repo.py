@@ -1,4 +1,4 @@
-from models import Podcast, Textbeitrag, Konvertierungsauftrag
+from database.models import Podcast, Textbeitrag, Konvertierungsauftrag
 from .base_repo import BaseRepo
 
 class PodcastRepo(BaseRepo):

@@ -1,6 +1,6 @@
 from .base_repo import BaseRepo
 from sqlalchemy.orm import Session
-from models import PodcastStimme
+from database.models import PodcastStimme
 
 
 class VoiceRepo(BaseRepo):

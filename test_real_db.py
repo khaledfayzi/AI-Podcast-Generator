@@ -1,11 +1,10 @@
 import logging
 import os
-import sys
 from dotenv import load_dotenv
 
 # Deine Projekt-Imports
-from database import init_db_connection, get_db
-from models import PodcastStimme
+from database.database import init_db_connection, get_db
+from database.models import PodcastStimme
 from services.tts_service import GoogleTTSService
 
 # Logging Setup

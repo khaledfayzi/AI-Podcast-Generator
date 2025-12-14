@@ -1,4 +1,4 @@
-from models import Benutzer
+from database.models import Benutzer
 from .base_repo import BaseRepo
 
 class UserRepo(BaseRepo):

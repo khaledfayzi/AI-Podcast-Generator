@@ -9,11 +9,11 @@ from google.cloud import texttospeech
 from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 from pydub import AudioSegment
 
-from Interfaces.interface_tts_service import ITTSService
-from models import PodcastStimme
+from Interfaces.IServices import ITTSService
+from database.models import PodcastStimme
 from .exceptions import TTSServiceError
 from repositories.voice_repo import VoiceRepo
-from database import get_db
+from database.database import get_db
 
 load_dotenv()
 logger = logging.getLogger(__name__)
