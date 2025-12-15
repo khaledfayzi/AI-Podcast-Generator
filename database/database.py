@@ -4,7 +4,7 @@ import urllib
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sshtunnel import SSHTunnelForwarder
-from models import Base
+from database.models import Base
 from flask import g
 
 engine = None

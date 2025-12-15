@@ -102,7 +102,7 @@ def run_real_test():
 
 def _cleanup_and_exit():
     """Schließt den SSH Tunnel sauber"""
-    from database import tunnel as db_tunnel
+    from database.database import tunnel as db_tunnel
     if db_tunnel and db_tunnel.is_active:
         print("Schließe SSH Tunnel...")
         db_tunnel.stop()
