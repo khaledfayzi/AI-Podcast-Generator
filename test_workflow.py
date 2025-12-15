@@ -2,7 +2,7 @@
 
 import logging
 from unittest.mock import MagicMock, patch
-from services.workflow import Workflow
+from services.workflow import PodcastWorkflow
 import os
 from dotenv import load_dotenv
 
@@ -31,7 +31,7 @@ def main_full_api_test():
         logger.info("Starte ECHTEN API-Workflow (LLM + TTS)...")
         
         try:
-            workflow = Workflow()
+            workflow = PodcastWorkflow()
             
             # Echte Parameter für den Lauf
             audio_path = workflow.run_pipeline(
