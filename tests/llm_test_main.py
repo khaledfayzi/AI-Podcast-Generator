@@ -4,7 +4,7 @@ import os
 
 
 def save_script(text: str):
-    os.makedirs("scripts", exist_ok=True)
+    os.makedirs("../scripts", exist_ok=True)
     filename = f"scripts/podcast_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
 
     with open(filename, "w", encoding="utf-8") as f:

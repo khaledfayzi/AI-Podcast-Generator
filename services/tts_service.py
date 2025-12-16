@@ -40,9 +40,9 @@ class GoogleTTSService(ITTSService):
             nltk.download('punkt_tab')
 
     def generate_audio(self, script_text: str, primary_voice: PodcastStimme,
-                       secondary_voice: PodcastStimme = None) -> str | None:
+                       secondary_voice: PodcastStimme = None) -> AudioSegment | None:
         """
-        Wandelt ein Skript in eine MP3-Datei um.
+        Wandelt ein Skript in ein Audio-Objekt um.
 
         Args:
             script_text: Der vollständige Dialogtext.
@@ -50,7 +50,7 @@ class GoogleTTSService(ITTSService):
             secondary_voice: Optionale Zweitstimme.
 
         Returns:
-            Dateiname der erstellten MP3 oder None bei Fehler.
+            AudioSegment-Objekt oder None bei Fehler.
         """
 
         # 1. Konfiguration laden
@@ -147,7 +147,7 @@ class GoogleTTSService(ITTSService):
 
         # 4. Zusammenfügen ('sum' ist speichereffizienter als '+=' in Loops)
         combined_audio = sum(audio_segments, AudioSegment.empty())
-        return self._save_audio(combined_audio)
+        return combined_audio
 
     @staticmethod
     def _text_splitter(text: str, max_chars: int) -> list[str]:
@@ -198,15 +198,3 @@ class GoogleTTSService(ITTSService):
             language_code=tts_voice_string[:5],
             name=tts_voice_string
         )
-
-    @staticmethod
-    def _save_audio(audio_obj: AudioSegment) -> str:
-        """Exportiert das Audio-Objekt als MP3 und gibt den Dateinamen zurück."""
-        try:
-            filename = f"podcast_google_{uuid.uuid4()}.mp3"
-            audio_obj.export(filename, format="mp3", bitrate="192k")
-            logger.info(f"Google TTS saved: {filename}")
-            return filename
-        except Exception as e:
-            logger.error(f"Save failed: {e}")
-            raise TTSServiceError(f"IO Error: {e}")

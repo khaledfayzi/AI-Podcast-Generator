@@ -2,6 +2,7 @@ import logging
 from datetime import date
 from dotenv import load_dotenv
 import os
+import uuid
 from paramiko import RSAKey
 # DSSKey nicht mehr verwenden
 
@@ -11,6 +12,7 @@ from .tts_service import GoogleTTSService
 from .exceptions import TTSServiceError
 from database.database import get_db
 from database.models import PodcastStimme, Textbeitrag, Konvertierungsauftrag, Podcast, AuftragsStatus
+from repositories import VoiceRepo, TextRepo, JobRepo, PodcastRepo
 
 
 import logging
@@ -95,16 +97,26 @@ class PodcastWorkflow:
         secondary_voice: VoiceDTO | None
     ) -> str:
 
-        audio_path = self.tts_service.generate_audio(
+        audio_segment = self.tts_service.generate_audio(
             script_text=script,
             primary_voice=primary_voice,
             secondary_voice=secondary_voice
         )
 
-        if not audio_path:
+        if not audio_segment:
             raise TTSServiceError("TTS lieferte kein Audio")
 
-        return audio_path
+        # Speichern des Audios (jetzt im Workflow)
+        try:
+            filename = f"podcast_google_{uuid.uuid4()}.mp3"
+            # Pfad relativ zum Projekt-Root oder absolut, hier einfach Dateiname im aktuellen Dir
+            # Falls ein spezieller Output-Ordner gewünscht ist, hier anpassen.
+            audio_segment.export(filename, format="mp3", bitrate="192k")
+            logger.info(f"Audio erfolgreich gespeichert: {filename}")
+            return filename
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern der Audiodatei: {e}")
+            raise TTSServiceError(f"IO Error beim Speichern: {e}")
 
     # --------------------------------------------------
     # 3) Metadaten speichern
@@ -124,6 +136,10 @@ class PodcastWorkflow:
         secondary_voice: VoiceDTO | None,
         audio_path: str
     ):
+        text_repo = TextRepo(session)
+        job_repo = JobRepo(session)
+        podcast_repo = PodcastRepo(session)
+
         try:
             # Textbeitrag
             text = Textbeitrag(
@@ -135,8 +151,8 @@ class PodcastWorkflow:
                 erstelldatum=date.today(),
                 sprache=sprache
             )
-            session.add(text)
-            session.flush()  # textId verfügbar machen
+            # Add via Repo (commits internally)
+            text = text_repo.add(text)
 
             # Konvertierungsauftrag
             job = Konvertierungsauftrag(
@@ -147,8 +163,7 @@ class PodcastWorkflow:
                 gewuenschteDauer=dauer,
                 status=AuftragsStatus.IN_BEARBEITUNG
             )
-            session.add(job)
-            session.flush()  # auftragId verfügbar machen
+            job = job_repo.add(job)
 
             # Podcast (Audio-Datei)
             podcast = Podcast(
@@ -158,19 +173,130 @@ class PodcastWorkflow:
                 dateipfadAudio=audio_path,
                 erstelldatum=date.today()
             )
-            session.add(podcast)
+            podcast = podcast_repo.add(podcast)
 
-            session.commit()
             logger.info(f"Workflow erfolgreich in DB gespeichert: Auftrag {job.auftragId}")
             return text, job, podcast
 
         except Exception:
-            session.rollback()
+            # session.rollback() # Not needed or effective as repo.add commits
             logger.error("Fehler beim Speichern der Metadaten", exc_info=True)
             raise
 
     # --------------------------------------------------
-    # PUBLIC API
+    # PUBLIC API for UI Integration
+    # --------------------------------------------------
+    def generate_script_step(self, thema: str, dauer: int, sprache: str, hauptstimme: str = "Max", zweitstimme: str = "Sarah") -> str:
+        """ Wrapper für den Skript-Generierungsschritt der UI """
+        
+        # Check if second voice is selected
+        has_second_voice = zweitstimme and zweitstimme != "Keine"
+        speakers = 2 if has_second_voice else 1
+        
+        return self._generate_script(
+            thema=thema,
+            sprache=sprache,
+            dauer=dauer,
+            speakers=speakers,
+            roles={},
+            hauptstimme=hauptstimme,
+            zweitstimme=zweitstimme if has_second_voice else None
+        )
+
+    def generate_audio_step(self, script_text: str, thema: str, dauer: int, sprache: str, hauptstimme: str, zweitstimme: str | None) -> str:
+        """ Wrapper für den Audio-Generierungsschritt der UI """
+        user_id = 1
+        llm_id = 1
+        tts_id = 1
+        
+        session = get_db()
+        try:
+            voice_repo = VoiceRepo(session)
+            
+            # Stimmen laden via Repo
+            primary_voice_db = None
+            voices_p = voice_repo.get_voices_by_names([hauptstimme])
+            if voices_p:
+                primary_voice_db = voices_p[0]
+
+            secondary_voice_db = None
+            if zweitstimme and zweitstimme != "Keine":
+                voices_s = voice_repo.get_voices_by_names([zweitstimme])
+                if voices_s:
+                    secondary_voice_db = voices_s[0]
+
+            if not primary_voice_db:
+                 # Fallback
+                 voices_fallback = voice_repo.get_voices_by_names(["Max"])
+                 if voices_fallback:
+                     primary_voice_db = voices_fallback[0]
+                 else:
+                    raise ValueError(f"Stimme '{hauptstimme}' nicht gefunden und Standardstimme 'Max' auch nicht.")
+            
+            primary_voice = VoiceDTO(primary_voice_db.stimmeId, primary_voice_db.name, primary_voice_db.ttsVoice)
+            secondary_voice = None
+            if secondary_voice_db:
+                secondary_voice = VoiceDTO(secondary_voice_db.stimmeId, secondary_voice_db.name, secondary_voice_db.ttsVoice)
+
+            # Audio erzeugen
+            audio_path = self._generate_audio(script_text, primary_voice, secondary_voice)
+
+            # Metadaten speichern (nutzt Repos)
+            self._save_metadata(
+                session=session,
+                user_id=user_id,
+                llm_id=llm_id,
+                tts_id=tts_id,
+                user_prompt="", 
+                script=script_text,
+                thema=thema,
+                dauer=dauer,
+                sprache=sprache,
+                primary_voice=primary_voice,
+                secondary_voice=secondary_voice,
+                audio_path=audio_path
+            )
+            return audio_path
+        finally:
+            session.close()
+
+    def get_podcasts(self):
+        """ Gibt eine Liste aller Podcasts für die UI Tabelle zurück """
+        session = get_db()
+        try:
+            podcast_repo = PodcastRepo(session)
+            podcasts = podcast_repo.get_all_sorted_by_date_desc()
+            result = []
+            for p in podcasts:
+                result.append([p.titel, str(p.realdauer) + " min", str(p.erstelldatum)])
+            return result
+        finally:
+            session.close()
+
+    def get_audio_path_by_index(self, index: int) -> str:
+        """ Gibt den Pfad anhand des Tabellen-Index zurück """
+        session = get_db()
+        try:
+            podcast_repo = PodcastRepo(session)
+            podcasts = podcast_repo.get_all_sorted_by_date_desc()
+            if 0 <= index < len(podcasts):
+                return podcasts[index].dateipfadAudio
+            return ""
+        finally:
+            session.close()
+
+    def get_voices(self):
+        """ Gibt Liste verfügbarer Stimmen zurück """
+        session = get_db()
+        try:
+            voice_repo = VoiceRepo(session)
+            voices = voice_repo.get_all()
+            return [v.name for v in voices]
+        finally:
+            session.close()
+
+    # --------------------------------------------------
+    # PUBLIC API (Legacy / Full Pipeline)
     # --------------------------------------------------
     def run_pipeline(
         self,
@@ -192,16 +318,23 @@ class PodcastWorkflow:
         """
         session = get_db()
         try:
+            voice_repo = VoiceRepo(session)
             # ------------------------------
             # Stimmen aus DB laden
             # ------------------------------
-            primary_voice_db = session.query(PodcastStimme).filter_by(name=hauptstimme).first()
+            primary_voice_db = None
+            voices_p = voice_repo.get_voices_by_names([hauptstimme])
+            if voices_p:
+                primary_voice_db = voices_p[0]
+
             if not primary_voice_db:
                 raise ValueError(f"Hauptstimme '{hauptstimme}' nicht in der DB gefunden")
 
             secondary_voice_db = None
             if zweitstimme:
-                secondary_voice_db = session.query(PodcastStimme).filter_by(name=zweitstimme).first()
+                voices_s = voice_repo.get_voices_by_names([zweitstimme])
+                if voices_s:
+                    secondary_voice_db = voices_s[0]
                 if not secondary_voice_db:
                     raise ValueError(f"Zweitstimme '{zweitstimme}' nicht in der DB gefunden")
 

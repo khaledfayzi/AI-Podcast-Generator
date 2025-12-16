@@ -14,3 +14,9 @@ class PodcastRepo(BaseRepo):
                 .join(Textbeitrag)
                 .filter(Textbeitrag.userId == user_id)
                 .all())
+
+    def get_all_sorted_by_date_desc(self):
+        """
+        Liefert alle Podcasts nach Erstelldatum absteigend sortiert
+        """
+        return self.db.query(Podcast).order_by(Podcast.erstelldatum.desc()).all()

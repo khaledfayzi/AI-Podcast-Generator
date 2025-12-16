@@ -12,6 +12,5 @@ requests
 sshtunnel
 flask
 google-cloud-texttospeech
-google-cloud-aiplatform
 pytest
 paramiko==2.11.0
