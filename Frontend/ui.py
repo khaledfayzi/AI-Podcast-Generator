@@ -22,10 +22,10 @@ available_voices = workflow.get_voices()
 available_voices_2 = available_voices + ["Keine"]
 
 def navigate(target):
-    pages_names = ["home", "skript bearbeiten", "deine podcasts", "audio player", "loading script", "loading podcast"]
+    page_names = ["home", "skript bearbeiten", "deine podcasts", "audio player", "loading script", "loading podcast"]
     results = []
 
-    for page in pages_names:
+    for page in page_names:
         if page == target:
             results.append(gr.update(visible=True))
         else:
@@ -33,6 +33,12 @@ def navigate(target):
 
     return tuple(results)
 
+def navigate_and_refresh_podcasts():
+    nav_updates = navigate("deine podcasts")
+    
+    fresh_data = get_podcasts_wrapper()
+    
+    return nav_updates + (gr.update(samples=fresh_data),)
 
 def get_audio_url_by_row_index_wrapper(row_index):
     path = workflow.get_audio_path_by_index(row_index)
@@ -98,6 +104,21 @@ def generate_audio_wrapper(script_text, thema, dauer, sprache, speaker1, speaker
         # Vorerst rufe ich es so auf.
     )
 
+# Hier definieren wir den Wrapper lokal, um auf die Workflow-Instance zuzugreifen und Argumente korrekt zu mappen
+def run_audio_gen(script_text, thema, dauer, sprache, s1, s2):
+    # Wir rufen direkt die private Methode auf oder fixen workflow.py.
+    # Ich entscheide mich für direkten Aufruf der Logik hier oder in einem Helper, 
+    # da ich workflow.py nicht sofort nochmal editieren will, aber es wäre sauberer.
+    # Aber warte! Ich kann generate_audio_step in workflow.py einfach die Argumente hinzufügen.
+    # Da ich das File aber schon editiert habe, ist es vielleicht besser,
+    # ich mache es hier "richtig" mit dem was ich habe.
+        
+    # Da generate_audio_step hardcoded values hat, MUSS ich workflow.py fixen.
+    # Sonst ignoriert er die User-Auswahl.
+    # Ich werde im nächsten Turn workflow.py fixen.
+    # Hier übergebe ich schon mal alle Args.
+    return workflow.generate_audio_step(script_text, thema, int(dauer), sprache, s1, s2)
+
 def get_podcasts_wrapper():
     return workflow.get_podcasts()
 
@@ -124,8 +145,36 @@ def get_loader_html(message):
     </style>
     """
 
+custom_css = """
+.selected-row {
+    background-color: #e0f2fe !important;  /* Light Blue Background */
+    border: 2px solid #0284c7 !important;  /* Blue Border */
+    transform: scale(1.01);                /* Slight pop effect */
+}
+"""
 
-with gr.Blocks() as demo:
+js_highlight = """
+(index) => {
+    // Find the dataset container by ID
+    const container = document.getElementById("podcast_dataset");
+    
+    // Gradio Datasets render items as buttons with class 'gallery-item'
+    const items = container.querySelectorAll("button.gallery-item");
+    
+    items.forEach((item, idx) => {
+        // The index passed from Gradio matches the DOM order
+        if (idx === index) {
+            item.classList.add("selected-row");
+        } else {
+            item.classList.remove("selected-row");
+        }
+    });
+    
+    return index; // Pass the index back to Python
+}
+"""
+
+with gr.Blocks(css=custom_css) as demo:
     audio_state = gr.State()
 
     gr.Markdown("# KI Podcast Generator")
@@ -208,6 +257,7 @@ with gr.Blocks() as demo:
                     date_box = gr.Textbox()
 
                 podcast_table = gr.Dataset(
+                    elem_id="podcast_dataset",
                     headers=["Titel", "Dauer", "Erstellt am"],
                     components=[t_box, d_box, date_box],
                     samples=get_podcasts_wrapper(),
@@ -227,9 +277,10 @@ with gr.Blocks() as demo:
             gr.Column(scale=1)
 
     # Audio Player page
-    with gr.Column(visible=False) as audio_player_col:
+    with gr.Column(visible=False) as audio_player_page:
         gr.Markdown("## Audio Player")
         audio_player = gr.Audio(label="Dein generierter Podcast", type="filepath")
+        btn_zuruck_audio = gr.Button("Zurück zu Deinen Podcasts")
 
     # Script loading page
     with gr.Column(visible=False) as loading_page_script:
@@ -242,13 +293,14 @@ with gr.Blocks() as demo:
 
         gr.HTML(spinner_html)
 
+    pages = [home, skript_bearbeiten, deine_podcasts, audio_player_page, loading_page_script, loading_page_podcast]
+    
     podcast_table.click(
         fn=on_click_row,
         inputs=podcast_table,
-        outputs=[audio_state]
-    )
-
-    pages = [home, skript_bearbeiten, deine_podcasts, audio_player_col, loading_page_script, loading_page_podcast]
+        outputs=[audio_state],
+        js=js_highlight
+        )
 
     btn_zuruck_deinepodcasts.click(fn=lambda: navigate("skript bearbeiten"),
                                    inputs=None,
@@ -262,45 +314,35 @@ with gr.Blocks() as demo:
                                 inputs=None,
                                 outputs=pages,
                                 ).then(
-        fn=generate_script_wrapper,
-        inputs=[textbox_thema, dropdown_dauer, dropdown_sprache, dropdown_speaker1, dropdown_speaker2],
-        outputs=text
-    ).success(
-        fn=lambda: navigate("skript bearbeiten"),
-        inputs=None,
-        outputs=pages
-    )
+                                    fn=generate_script_wrapper,
+                                    inputs=[textbox_thema, dropdown_dauer, dropdown_sprache, dropdown_speaker1, dropdown_speaker2],
+                                    outputs=text
+                                    ).success(
+                                        fn=lambda: navigate("skript bearbeiten"),
+                                        inputs=None,
+                                        outputs=pages
+                                        )
     
-    # Hier definieren wir den Wrapper lokal, um auf die Workflow-Instance zuzugreifen und Argumente korrekt zu mappen
-    def run_audio_gen(script_text, thema, dauer, sprache, s1, s2):
-        # Wir rufen direkt die private Methode auf oder fixen workflow.py.
-        # Ich entscheide mich für direkten Aufruf der Logik hier oder in einem Helper, 
-        # da ich workflow.py nicht sofort nochmal editieren will, aber es wäre sauberer.
-        # Aber warte! Ich kann generate_audio_step in workflow.py einfach die Argumente hinzufügen.
-        # Da ich das File aber schon editiert habe, ist es vielleicht besser,
-        # ich mache es hier "richtig" mit dem was ich habe.
-        
-        # Da generate_audio_step hardcoded values hat, MUSS ich workflow.py fixen.
-        # Sonst ignoriert er die User-Auswahl.
-        # Ich werde im nächsten Turn workflow.py fixen.
-        # Hier übergebe ich schon mal alle Args.
-        return workflow.generate_audio_step(script_text, thema, int(dauer), sprache, s1, s2)
 
     btn_podcast_generieren.click(fn=lambda: navigate("loading podcast"),
                                  inputs=None,
-                                 outputs=pages, ).success(
-        fn=run_audio_gen,
-        inputs=[text, textbox_thema, dropdown_dauer, dropdown_sprache, dropdown_speaker1, dropdown_speaker2],
-        outputs=None
-    ).success(
-        fn=lambda: navigate("deine podcasts"),
-        inputs=None,
-        outputs=pages
-    )
+                                 outputs=pages).success(
+                                     fn=run_audio_gen,
+                                     inputs=[text, textbox_thema, dropdown_dauer, dropdown_sprache, dropdown_speaker1, dropdown_speaker2],
+                                     outputs=None
+                                     ).success(
+                                         fn=navigate_and_refresh_podcasts,
+                                         inputs=None,
+                                         outputs=pages + [podcast_table]
+                                         )
 
     btn_play.click(fn=on_play_click,
                    inputs=[audio_state],
                    outputs=pages + [audio_player])
+    
+    btn_zuruck_audio.click(fn=lambda: navigate("deine podcasts"),
+                           inputs=None,
+                           outputs=pages)
 
 if __name__ == "__main__":
     demo.queue()
