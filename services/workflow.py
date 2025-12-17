@@ -273,6 +273,7 @@ class PodcastWorkflow:
         finally:
             session.close()
 
+    '''
     def get_audio_path_by_index(self, index: int) -> str:
         """ Gibt den Pfad anhand des Tabellen-Index zurück """
         session = get_db()
@@ -282,6 +283,25 @@ class PodcastWorkflow:
             if 0 <= index < len(podcasts):
                 return podcasts[index].dateipfadAudio
             return ""
+        finally:
+            session.close()
+    '''
+    
+    def get_podcasts_data(self):
+        """ Returns list of dicts for the UI cards """
+        session = get_db()
+        try:
+            podcast_repo = PodcastRepo(session)
+            podcasts = podcast_repo.get_all_sorted_by_date_desc()
+            result = []
+            for p in podcasts:
+                result.append({
+                    "titel": p.titel,
+                    "dauer": p.realdauer,
+                    "datum": str(p.erstelldatum),
+                    "path": p.dateipfadAudio
+                })
+            return result
         finally:
             session.close()
 
