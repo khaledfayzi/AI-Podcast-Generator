@@ -33,12 +33,20 @@ def navigate(target):
 
     return tuple(results)
 
+'''
 def navigate_and_refresh_podcasts():
     nav_updates = navigate("deine podcasts")
     
     fresh_data = get_podcasts_wrapper()
     
     return nav_updates + (gr.update(samples=fresh_data),)
+'''
+
+def navigate_and_refresh_podcasts():
+    # Fetch fresh data directly from workflow
+    data = workflow.get_podcasts_data()
+    # Update navigation AND the state variable for the list
+    return navigate("deine podcasts") + (data,)
 
 def get_audio_url_by_row_index_wrapper(row_index):
     path = workflow.get_audio_path_by_index(row_index)
@@ -46,15 +54,27 @@ def get_audio_url_by_row_index_wrapper(row_index):
         return os.path.abspath(path)
     return path
 
-def on_click_row(row_index):
-    url = get_audio_url_by_row_index_wrapper(row_index)
+def on_click_row(value):
+    # value is the row data when clicked
+    if isinstance(value, dict) and 'index' in value:
+        idx = value['index']
+    else:
+        idx = 0
+    url = get_audio_url_by_row_index_wrapper(idx)
     print(f"Selected audio path: {url}")
     return url
 
-
+'''
 def on_play_click(url):
     nav_updates = navigate("audio player")
     return nav_updates + (gr.update(value=url, autoplay=True),)
+'''
+
+def on_play_click(audio_path):
+    nav_updates = navigate("audio player")
+    # Resolve absolute path for the player
+    full_path = os.path.abspath(audio_path) if audio_path else None
+    return nav_updates + (gr.update(value=full_path, autoplay=True),)
 
 def generate_script_wrapper(thema, dauer, sprache, speaker1, speaker2):
     # Workflow erwartet bestimmte Parameter. Hier mappen wir UI -> Workflow
@@ -145,37 +165,10 @@ def get_loader_html(message):
     </style>
     """
 
-custom_css = """
-.selected-row {
-    background-color: #e0f2fe !important;  /* Light Blue Background */
-    border: 2px solid #0284c7 !important;  /* Blue Border */
-    transform: scale(1.01);                /* Slight pop effect */
-}
-"""
 
-js_highlight = """
-(index) => {
-    // Find the dataset container by ID
-    const container = document.getElementById("podcast_dataset");
-    
-    // Gradio Datasets render items as buttons with class 'gallery-item'
-    const items = container.querySelectorAll("button.gallery-item");
-    
-    items.forEach((item, idx) => {
-        // The index passed from Gradio matches the DOM order
-        if (idx === index) {
-            item.classList.add("selected-row");
-        } else {
-            item.classList.remove("selected-row");
-        }
-    });
-    
-    return index; // Pass the index back to Python
-}
-"""
-
-with gr.Blocks(css=custom_css) as demo:
+with gr.Blocks() as demo:
     audio_state = gr.State()
+    podcast_list_state = gr.State(workflow.get_podcasts_data())
 
     gr.Markdown("# KI Podcast Generator")
 
@@ -246,6 +239,7 @@ with gr.Blocks(css=custom_css) as demo:
             btn_podcast_generieren = gr.Button("Podcast Generieren")
 
     # Deine Podcasts page
+    '''
     with gr.Column(visible=False) as deine_podcasts:
         gr.Markdown("# Deine Podcasts")
 
@@ -267,14 +261,45 @@ with gr.Blocks(css=custom_css) as demo:
 
             with gr.Column(scale=1):
                 btn_play = gr.Button("▶ Play")
-                btn_download = gr.Button("⤓ Download")
-                btn_delete = gr.Button("🗑️ Löschen")
-                btn_share = gr.Button("🔗 Teilen")
+                #btn_download = gr.Button("⤓ Download")
+                #btn_delete = gr.Button("🗑️ Löschen")
+                #btn_share = gr.Button("🔗 Teilen")
 
         with gr.Row():
             gr.Column(scale=1)
             btn_zuruck_deinepodcasts = gr.Button("Zurück", scale=1)
             gr.Column(scale=1)
+    '''
+    # Deine Podcasts page
+    with gr.Column(visible=False) as deine_podcasts:
+        gr.Markdown("# Deine Podcasts")
+
+        # Dynamic rendering of cards
+        @gr.render(inputs=podcast_list_state)
+        def render_podcasts(podcasts):
+            if not podcasts:
+                gr.Markdown("Noch keine Podcasts vorhanden.")
+                return
+
+            for p in podcasts:
+                with gr.Group():
+                    with gr.Row(variant="panel", equal_height=True):
+                        with gr.Column(scale=4):
+                            gr.Markdown(f"### {p['titel']}")
+                            gr.Markdown(f"📅 {p['datum']} | ⏱️ {p['dauer']} Min")
+                        
+                        with gr.Column(scale=1, min_width=120):
+                            btn_card_play = gr.Button("▶ Play", variant="primary", size="sm")
+                            
+                            # Bind click directly to this podcast's path
+                            btn_card_play.click(
+                                fn=on_play_click,
+                                inputs=[gr.State(p['path'])],
+                                outputs=pages + [audio_player]
+                            )
+
+        with gr.Row():
+            btn_zuruck_deinepodcasts = gr.Button("Zurück")
 
     # Audio Player page
     with gr.Column(visible=False) as audio_player_page:
@@ -295,12 +320,13 @@ with gr.Blocks(css=custom_css) as demo:
 
     pages = [home, skript_bearbeiten, deine_podcasts, audio_player_page, loading_page_script, loading_page_podcast]
     
+    '''
     podcast_table.click(
         fn=on_click_row,
         inputs=podcast_table,
-        outputs=[audio_state],
-        js=js_highlight
+        outputs=audio_state,
         )
+    '''
 
     btn_zuruck_deinepodcasts.click(fn=lambda: navigate("skript bearbeiten"),
                                    inputs=None,
@@ -333,13 +359,16 @@ with gr.Blocks(css=custom_css) as demo:
                                      ).success(
                                          fn=navigate_and_refresh_podcasts,
                                          inputs=None,
-                                         outputs=pages + [podcast_table]
+                                         outputs=pages + [podcast_list_state]
                                          )
 
+
+    '''
     btn_play.click(fn=on_play_click,
                    inputs=[audio_state],
                    outputs=pages + [audio_player])
-    
+    '''
+
     btn_zuruck_audio.click(fn=lambda: navigate("deine podcasts"),
                            inputs=None,
                            outputs=pages)
