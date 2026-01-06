@@ -68,21 +68,29 @@ class PodcastWorkflow:
         speakers: int,
         roles: dict | None,
         hauptstimme: str,
-        zweitstimme: str | None
+        zweitstimme: str | None,
+        
+        
+        
     ) -> str:
 
         config = {
             "language": sprache,
             "dauer": dauer,
             "speakers": speakers,
-            "roles": roles or {}
+            "roles": roles or {"Max": "Moderator",
+            "Sara": "Expertin"},
+            "hauptstimme": hauptstimme,
+            "zweitstimme": zweitstimme,   # oder None
+            "style": "gechillt"
+
         }
 
         script = self.llm_service.generate_script(
             thema=thema,
             config=config,
-            hauptstimme=hauptstimme,
-            zweitstimme=zweitstimme
+            #hauptstimme=hauptstimme,
+            #zweitstimme=zweitstimme
         )
         logger.info("Skript erfolgreich vom LLM generiert")
         return script
