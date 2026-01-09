@@ -132,7 +132,6 @@ with gr.Blocks() as demo:
     audio_state = gr.State()
     podcast_list_state = gr.State([]) 
 
-    gr.Markdown("# KI Podcast Generator")
 
     with gr.Column(visible=True) as home:
         with gr.Row():
