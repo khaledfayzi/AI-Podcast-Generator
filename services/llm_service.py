@@ -6,7 +6,6 @@ import time
 from dotenv import load_dotenv
 load_dotenv()
 
-
 class LLMService(ILLMService):
     """
         Service für Textgenerierung mit einem Sprachmodell.
@@ -183,7 +182,7 @@ class LLMService(ILLMService):
     
 
     # Dummy
-    def _dummy_output(self,thema:str):          
+    def _dummy_output(self,thema:str,config:dict):          
             """
             Gibt einen einfachen Dummy-Text zurück.
             Wird verwendet, wenn kein echtes LLM aufgerufen wird (z.B. im Dummy-Modus).
@@ -194,6 +193,7 @@ class LLMService(ILLMService):
             
             return (
                     f"{thema}: Das ist ein Dummy-Testtext ohne zweiten Sprecher.\n"
+                    f"{config}:Das ist eine Dummy Test"
                 )
 
     # PUBLIC METHOD
@@ -211,7 +211,7 @@ class LLMService(ILLMService):
         
         # Dummy-Modus (für lokale Tests)
         if self.use_dummy:
-            return self._dummy_output(thema)
+            return self._dummy_output(thema,config)
 
         prompt = (
             self._system_prompt(config)
@@ -222,4 +222,4 @@ class LLMService(ILLMService):
         try:
             return self._ask_gemini(prompt)
         except LLMServiceError:
-            return self._dummy_output(thema)
+            return self._dummy_output(thema,config)
