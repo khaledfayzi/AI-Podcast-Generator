@@ -1,10 +1,8 @@
-import logging
+
 from datetime import date
-from dotenv import load_dotenv
 import os
 import uuid
-from paramiko import RSAKey
-# DSSKey nicht mehr verwenden
+
 
 
 from .llm_service import LLMService
@@ -17,8 +15,7 @@ from repositories import VoiceRepo, TextRepo, JobRepo, PodcastRepo
 
 import logging
 from dotenv import load_dotenv
-from pydub.utils import which
-from pydub import AudioSegment
+
 
 # --------------------------------------------------
 # ffmpeg Pfad setzen (wichtig für pydub)
@@ -210,9 +207,8 @@ class PodcastWorkflow:
             zweitstimme=zweitstimme if has_second_voice else None
         )
 
-    def generate_audio_step(self, script_text: str, thema: str, dauer: int, sprache: str, hauptstimme: str, zweitstimme: str | None) -> str:
+    def generate_audio_step(self, script_text: str, thema: str, dauer: int, sprache: str, hauptstimme: str, zweitstimme: str | None, user_id: int = 1) -> str:
         """ Wrapper für den Audio-Generierungsschritt der UI """
-        user_id = 1
         llm_id = 1
         tts_id = 1
 
@@ -294,12 +290,18 @@ class PodcastWorkflow:
             session.close()
     '''
 
-    def get_podcasts_data(self):
-        """ Returns list of dicts for the UI cards """
+    def get_podcasts_data(self, user_id: int = None):
+        """ Returns list of dicts for the UI cards, filtered by user_id if provided. """
         session = get_db()
         try:
             podcast_repo = PodcastRepo(session)
-            podcasts = podcast_repo.get_all_sorted_by_date_desc()
+            if user_id:
+                podcasts = podcast_repo.get_by_user_id(user_id)
+                podcasts.sort(key=lambda x: x.erstelldatum, reverse=True)
+            else:
+                # Security: If no user logged in, show nothing (or public podcasts later)
+                return []
+                
             result = []
             for p in podcasts:
                 result.append({

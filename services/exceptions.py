@@ -3,3 +3,6 @@ class TTSServiceError(Exception):
 
 class LLMServiceError(Exception):
     pass
+
+class AuthenticationError(Exception):
+    pass

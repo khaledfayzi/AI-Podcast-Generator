@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Boolean, Enum, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, Enum, ForeignKey, Text
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import date
 from typing import List
@@ -24,7 +24,10 @@ class Benutzer(Base):
     __tablename__ = 'Benutzer'
     userId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
     smailAdresse = Column(String(255), unique=True, nullable=False)
+    token = Column(String(255), unique=True, nullable=True)
+    status = Column(String(255), unique=True, nullable=False)
     registrierungsdatum = Column(Date, nullable=False)
+    token_timestamp = Column(DateTime, nullable=True)
 
     # Beziehungen (1:n)
     textbeitraege = relationship("Textbeitrag", back_populates="ersteller")
