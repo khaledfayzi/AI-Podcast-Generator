@@ -2,8 +2,10 @@ from Interfaces.IServices import ILLMService
 from .exceptions import LLMServiceError
 import requests
 import os
+import time
 from dotenv import load_dotenv
 load_dotenv()
+
 
 class LLMService(ILLMService):
     """
@@ -27,19 +29,24 @@ class LLMService(ILLMService):
         self.url = f"https://generativelanguage.googleapis.com/v1/{self.model}:generateContent?key={self.api_key}"
         self.use_dummy=use_dummy
 
+    #Hilffuntkion für der Regel
     def _roles_instruction(self, config: dict) -> str:
         s1 = config.get("hauptstimme", "Max")
         s2 = config.get("zweitstimme")
+        #rolle holen 
         roles = config.get("roles") or {}
 
         r1 = roles.get(s1)
         r2 = roles.get(s2) if s2 else None
 
         lines = []
+        #erste rolle
         if r1:
             lines.append(f"- {s1} ist {r1}.")
+        #gibt es eine zweite person und hat er eine rolle    
         if s2 and r2:
             lines.append(f"- {s2} ist {r2}.")
+        #gibt es überhaupt eine zweite person rolle verteilen
         if s2:
             lines.append(f"- {s1} stellt Fragen und moderiert; {s2} erklärt und liefert Fakten/Beispiele.")
 
@@ -143,23 +150,36 @@ class LLMService(ILLMService):
             "contents": [{"role": "user", "parts": [{"text": prompt}]}]
         }
 
-        # Netzwerkfehler abfangen
-        try:
-            response = requests.post(self.url, json=body, timeout=15)
-        except requests.RequestException as e:
-            raise LLMServiceError(f"Netzwerkfehler beim Zugriff auf Gemini: {e}")
+        for attempt in range(3):
 
-        # Falscher API-Status
-        if response.status_code != 200:
-            raise LLMServiceError(f"Gemini API-Fehler: HTTP {response.status_code} - {response.text}")
 
-        data = response.json()
+            # Netzwerkfehler abfangen
+            try:
+                response = requests.post(self.url, json=body, timeout=15)
+            except requests.RequestException as e:
+                if attempt < 2:
+                    time.sleep(attempt + 1)   #kurz warten und nochmal versuchen
+                    continue
+                raise LLMServiceError(f"Gemini ist nicht erreichbar (Internet/Server-Problem): {e}")
+            #zu viele Anfragen, bitte warten
+            if response.status_code==429 and attempt < 2:
+                time.sleep(attempt + 1)  #rate limit --> Warten
+                continue
 
-        # Parsing-Fehler abfangen
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            raise LLMServiceError("Gemini-Antwort konnte nicht gelesen werden.")
+
+            # Gemini mit einem fehler antwortet(falscher Key, Serverfehler, usw.)
+            if response.status_code != 200:
+                raise LLMServiceError(f"Gemini API-Fehler: HTTP {response.status_code} - {response.text}")
+
+
+            # Parsing-Fehler abfangen
+            try:
+                #lesen den Text aus der KI-Antwort
+                data = response.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            
+            except Exception:
+                raise LLMServiceError("Gemini-Antwort konnte nicht gelesen werden.")
     
 
     # Dummy
@@ -191,7 +211,7 @@ class LLMService(ILLMService):
         
         # Dummy-Modus (für lokale Tests)
         if self.use_dummy:
-            return self._dummy_output(config)
+            return self._dummy_output(thema)
 
         prompt = (
             self._system_prompt(config)
@@ -201,5 +221,5 @@ class LLMService(ILLMService):
 
         try:
             return self._ask_gemini(prompt)
-        except Exception:
+        except LLMServiceError:
             return self._dummy_output(thema)
