@@ -1,4 +1,3 @@
-import uuid
 import nltk
 import logging
 import io
@@ -67,7 +66,12 @@ class GoogleTTSService(ITTSService):
             else:
                 raise TTSServiceError(f"Keine TTS-Konfiguration für '{primary_voice.name}' gefunden.")
 
-        audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+            sample_rate_hertz=48000,
+            speaking_rate=0.92,
+            effects_profile_id=['headphone-class-device']
+        )
 
         # 2. Parsing & Batching
         # Wir gruppieren Sätze desselben Sprechers, um API-Calls zu sparen.
@@ -112,8 +116,8 @@ class GoogleTTSService(ITTSService):
         audio_segments = []
 
         for params, text_block in dialog_blocks:
-            # Chunking: Lange Blöcke (>4000 Zeichen) sicher aufteilen
-            chunks = self._text_splitter(text_block, max_chars=4000)
+            # Chunking: Lange Blöcke (>1000 Zeichen) sicher aufteilen
+            chunks = self._text_splitter(text_block, max_chars=1000)
 
             for chunk in chunks:
                 # Retry-Loop für API-Stabilität (z.B. bei Rate Limits)
@@ -125,7 +129,7 @@ class GoogleTTSService(ITTSService):
                             voice=params,
                             audio_config=audio_config
                         )
-                        audio_segments.append(AudioSegment.from_file(io.BytesIO(response.audio_content), format="mp3"))
+                        audio_segments.append(AudioSegment.from_file(io.BytesIO(response.audio_content), format="wav"))
                         break  # Erfolg -> Weiter zum nächsten Chunk
                     except (ResourceExhausted, ServiceUnavailable):
                         # Exponential Backoff
