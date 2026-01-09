@@ -68,29 +68,21 @@ class PodcastWorkflow:
         speakers: int,
         roles: dict | None,
         hauptstimme: str,
-        zweitstimme: str | None,
-        
-        
-        
+        zweitstimme: str | None
     ) -> str:
 
         config = {
             "language": sprache,
             "dauer": dauer,
             "speakers": speakers,
-            "roles": roles or {"Max": "Moderator",
-            "Sara": "Expertin"},
-            "hauptstimme": hauptstimme,
-            "zweitstimme": zweitstimme,   # oder None
-            "style": "gechillt"
-
+            "roles": roles or {}
         }
 
         script = self.llm_service.generate_script(
             thema=thema,
             config=config,
-            #hauptstimme=hauptstimme,
-            #zweitstimme=zweitstimme
+            hauptstimme=hauptstimme,
+            zweitstimme=zweitstimme
         )
         logger.info("Skript erfolgreich vom LLM generiert")
         return script
@@ -116,12 +108,19 @@ class PodcastWorkflow:
 
         # Speichern des Audios (jetzt im Workflow)
         try:
+            # Sicherstellen, dass der Output-Ordner existiert
+            output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Output")
+            os.makedirs(output_dir, exist_ok=True)
+
             filename = f"podcast_google_{uuid.uuid4()}.mp3"
-            # Pfad relativ zum Projekt-Root oder absolut, hier einfach Dateiname im aktuellen Dir
-            # Falls ein spezieller Output-Ordner gewünscht ist, hier anpassen.
-            audio_segment.export(filename, format="mp3", bitrate="192k")
-            logger.info(f"Audio erfolgreich gespeichert: {filename}")
-            return filename
+            filepath = os.path.join(output_dir, filename)
+
+            # Pfad für die Datenbank (relativ zum team04-Ordner)
+            db_path = os.path.join("Output", filename)
+
+            audio_segment.export(filepath, format="mp3", bitrate="192k")
+            logger.info(f"Audio erfolgreich gespeichert: {filepath}")
+            return db_path
         except Exception as e:
             logger.error(f"Fehler beim Speichern der Audiodatei: {e}")
             raise TTSServiceError(f"IO Error beim Speichern: {e}")
@@ -196,11 +195,11 @@ class PodcastWorkflow:
     # --------------------------------------------------
     def generate_script_step(self, thema: str, dauer: int, sprache: str, hauptstimme: str = "Max", zweitstimme: str = "Sarah") -> str:
         """ Wrapper für den Skript-Generierungsschritt der UI """
-        
+
         # Check if second voice is selected
         has_second_voice = zweitstimme and zweitstimme != "Keine"
         speakers = 2 if has_second_voice else 1
-        
+
         return self._generate_script(
             thema=thema,
             sprache=sprache,
@@ -216,11 +215,11 @@ class PodcastWorkflow:
         user_id = 1
         llm_id = 1
         tts_id = 1
-        
+
         session = get_db()
         try:
             voice_repo = VoiceRepo(session)
-            
+
             # Stimmen laden via Repo
             primary_voice_db = None
             voices_p = voice_repo.get_voices_by_names([hauptstimme])
@@ -240,7 +239,7 @@ class PodcastWorkflow:
                      primary_voice_db = voices_fallback[0]
                  else:
                     raise ValueError(f"Stimme '{hauptstimme}' nicht gefunden und Standardstimme 'Max' auch nicht.")
-            
+
             primary_voice = VoiceDTO(primary_voice_db.stimmeId, primary_voice_db.name, primary_voice_db.ttsVoice)
             secondary_voice = None
             if secondary_voice_db:
@@ -255,7 +254,7 @@ class PodcastWorkflow:
                 user_id=user_id,
                 llm_id=llm_id,
                 tts_id=tts_id,
-                user_prompt="", 
+                user_prompt="",
                 script=script_text,
                 thema=thema,
                 dauer=dauer,
@@ -294,7 +293,7 @@ class PodcastWorkflow:
         finally:
             session.close()
     '''
-    
+
     def get_podcasts_data(self):
         """ Returns list of dicts for the UI cards """
         session = get_db()
@@ -424,7 +423,7 @@ class PodcastWorkflow:
         except Exception:
             logger.error("PodcastWorkflow fehlgeschlagen", exc_info=True)
             raise
-        
+
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
@@ -447,4 +446,3 @@ if __name__ == "__main__":
         logger.info(f"Podcast erfolgreich erstellt: {audio_file}")
     except Exception as e:
         logger.error(f"Fehler beim Testlauf: {e}")
-    
