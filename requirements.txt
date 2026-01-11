@@ -22,3 +22,4 @@ lxml
 
 # Audio
 ffmpeg-python
+passlib
