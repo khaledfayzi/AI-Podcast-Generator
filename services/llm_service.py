@@ -221,5 +221,6 @@ class LLMService(ILLMService):
 
         try:
             return self._ask_gemini(prompt)
-        except LLMServiceError:
+        except LLMServiceError as e:
+            print("LLM error:", e)
             return self._dummy_output(thema,config)

@@ -68,7 +68,8 @@ class PodcastWorkflow:
         speakers: int,
         roles: dict | None,
         hauptstimme: str,
-        zweitstimme: str | None
+        zweitstimme: str | None,
+        source_text: str | None = None,
     ) -> str:
 
         config = {
@@ -78,6 +79,8 @@ class PodcastWorkflow:
             "roles": roles or {},
             "hauptstimme": hauptstimme,
             "zweitstimme": zweitstimme,
+            "source_text": (source_text or "").strip(),
+            "source_max_chars": 12000,
 
         }
 
@@ -210,7 +213,8 @@ class PodcastWorkflow:
             speakers=speakers,
             roles={},
             hauptstimme=hauptstimme,
-            zweitstimme=zweitstimme if has_second_voice else None
+            zweitstimme=zweitstimme if has_second_voice else None,
+            
         )
 
     def generate_audio_step(self, script_text: str, thema: str, dauer: int, sprache: str, hauptstimme: str, zweitstimme: str | None) -> str:

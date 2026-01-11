@@ -14,3 +14,11 @@ flask
 google-cloud-texttospeech
 pytest
 paramiko==2.11.0
+
+# PDF / Quellen
+PyPDF2
+beautifulsoup4
+lxml
+
+# Audio
+ffmpeg-python

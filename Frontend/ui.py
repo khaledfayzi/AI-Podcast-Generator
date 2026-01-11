@@ -5,6 +5,12 @@ import gradio as gr
 import sys
 import os
 
+from pathlib import Path
+from PyPDF2 import PdfReader
+import requests
+from bs4 import BeautifulSoup
+
+
 # Ensure we can import from team04
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
@@ -13,6 +19,14 @@ from team04.services.workflow import PodcastWorkflow
 workflow = PodcastWorkflow()
 available_voices = workflow.get_voices()
 available_voices_2 = available_voices + ["Keine"]
+ROLE_OPTIONS = [
+    "Moderator",
+    "Erzähler",
+    "Fragesteller (Interviewer)",
+    "Experte",
+    "Co-Host",
+    "Interviewpartner"
+]
 
 
 def navigate(target):
@@ -61,23 +75,26 @@ def on_play_click(audio_path):
 
 
 # ✅ FIX: "Keine" -> None + speakers korrekt (1 oder 2)
-def generate_script_wrapper(thema, dauer, sprache, speaker1, speaker2):
-    # Zweitstimme bereinigen
+def generate_script_wrapper(thema, dauer, sprache, speaker1,role1, speaker2,role2, source_text):
     if not speaker2 or speaker2 == "Keine" or speaker2 == speaker1:
         speaker2 = None
+        role2 = None
 
     speakers = 2 if speaker2 else 1
+    roles = {speaker1: role1}
+    if speaker2 and role2:
+        roles[speaker2] = role2
 
     return workflow._generate_script(
         thema=thema,
         sprache=sprache,
         dauer=int(dauer),
         speakers=speakers,
-        roles={},
+        roles=roles,
         hauptstimme=speaker1,
-        zweitstimme=speaker2
+        zweitstimme=speaker2,
+        source_text=source_text
     )
-
 
 # ❗ Diese Funktion war bei dir unvollständig.
 # Du kannst sie entfernen oder ignorieren; wir nutzen run_audio_gen.
@@ -125,59 +142,125 @@ def get_loader_html(message):
     }}
     </style>
     """
+#Hilfer Funktion für daten hochladen
+def extract_text_from_file(file_path: str) -> str:
+    if not file_path:
+        return ""
+    ext = Path(file_path).suffix.lower()
+
+    if ext == ".pdf":
+        reader = PdfReader(file_path)
+        parts = []
+        for page in reader.pages:
+            parts.append(page.extract_text() or "")
+        return "\n".join(parts).strip()
+
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+def fetch_text_from_url(url: str) -> str:
+    if not url:
+        return ""
+    try:
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        r.raise_for_status()
+    except Exception:
+        return ""
+
+    soup = BeautifulSoup(r.text, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    text = soup.get_text("\n")
+    text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
+    return text.strip()
+
+
+def build_source_text(file_path, url):
+    file_text = extract_text_from_file(file_path) if file_path else ""
+    url_text = fetch_text_from_url(url.strip()) if url else ""
+    combined = file_text if file_text else url_text  # Datei > URL
+    return (combined or "")[:12000]
+
 
 
 with gr.Blocks() as demo:
     audio_state = gr.State()
     podcast_list_state = gr.State(workflow.get_podcasts_data())
 
-    gr.Markdown("# KI Podcast Generator")
+    gr.Markdown("# KI Podcast Generator")#
+
 
     with gr.Column(visible=True) as home:
         gr.Markdown("""
-                    ## Wilkommen beim KI Poscast Generator! 
-                    ### Gib einfach dein Thema ein, lade einen Text oder eine PDF-Datei hoch, wähle die Sprache und die Sprecher - und lass die KI einen professionellen Podcast für dich erstellen.
-                    """)
+                ## Wilkommen beim KI Poscast Generator! 
+                ### Gib einfach dein Thema ein, lade einen Text oder eine PDF-Datei hoch, wähle die Sprache und die Sprecher - und lass die KI einen professionellen Podcast für dich erstellen.
+                """)
 
+    # ✅ Dauer + Sprache (FEHLT bei dir aktuell)
         with gr.Row():
             dropdown_dauer = gr.Dropdown(
                 choices=["1", "2", "3", "4", "5"],
                 label="Dauer",
                 value="1",
-                multiselect=False,
                 interactive=True
             )
-
             dropdown_sprache = gr.Dropdown(
                 choices=["Deutsch", "English"],
                 label="Sprache",
                 value="Deutsch",
-                multiselect=False,
                 interactive=True
             )
-
+    
+        # Sprecher + Rollen
         with gr.Row():
-            dropdown_speaker1 = gr.Dropdown(
-                choices=available_voices,
-                label="Hauptstimme",
-                value=available_voices[0] if available_voices else None,
-                interactive=True
-            )
-            dropdown_speaker2 = gr.Dropdown(
-                choices=available_voices_2,
-                label="Zweitstimme",
-                value=available_voices[1] if len(available_voices) > 1 else "Keine",
-                interactive=True
-            )
-
+            dropdown_speaker1 = gr.Dropdown(choices=available_voices, label="Sprecher 1 (Hauptstimme)")
+            dropdown_role1 = gr.Dropdown(choices=ROLE_OPTIONS, label="Rolle von Sprecher 1", value="Moderator")
+    
+        with gr.Row():
+            dropdown_speaker2 = gr.Dropdown(choices=available_voices_2, label="Sprecher 2 (Optional)", value="Keine")
+            dropdown_role2 = gr.Dropdown(choices=ROLE_OPTIONS + ["Keine"], label="Rolle von Sprecher 2", value="Keine")
+    
         textbox_thema = gr.Textbox(
             label="Thema",
             placeholder="Geben Sie das Thema ein...",
             lines=5,
             interactive=True
         )
-
+    
+        # ✅ Upload Felder
+        with gr.Row():
+            file_upload = gr.File(
+                label="PDF/TXT hochladen",
+                file_types=[".pdf", ".txt", ".md"],
+                type="filepath"
+            )
+            source_url = gr.Textbox(
+                label="Quelle / URL (optional)",
+                placeholder="https://...",
+                lines=1
+            )
+    
+        btn_quelle = gr.Button("Quelle übernehmen")
+    
+        source_preview = gr.Textbox(
+            label="Quelle (Text, der ins Skript einfließt)",
+            lines=6,
+            interactive=True
+        )
+    
+        btn_quelle.click(
+            fn=build_source_text,
+            inputs=[file_upload, source_url],
+            outputs=source_preview
+        )
+    
         btn_skript_generieren = gr.Button("Skript Generieren")
+
+    
 
     # Skript Bearbeiten page
     with gr.Column(visible=False) as skript_bearbeiten:
@@ -265,7 +348,7 @@ with gr.Blocks() as demo:
         outputs=pages,
     ).then(
         fn=generate_script_wrapper,
-        inputs=[textbox_thema, dropdown_dauer, dropdown_sprache, dropdown_speaker1, dropdown_speaker2],
+        inputs=[textbox_thema, dropdown_dauer, dropdown_sprache, dropdown_speaker1, dropdown_role1,dropdown_speaker2,dropdown_role2,source_preview],
         outputs=text
     ).success(
         fn=lambda: navigate("skript bearbeiten"),
