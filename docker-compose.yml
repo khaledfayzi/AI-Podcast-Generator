@@ -10,13 +10,14 @@ services:
       - PORT=7860
       # Wir überschreiben die Variable für den Container-Pfad
       - GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
-      - SSH_KEY_PATH=/app/ssh_key
+      # Auf dem VPS bitte auskommentieren, da nicht benötigt!
+      # - SSH_KEY_PATH=/app/ssh_key 
     env_file:
       - .env
     volumes:
       - ./data:/app/data
       # Google Key Pfad in der .env setzen 
       - ${GOOGLE_KEY_LOCAL_PATH}:/app/google-credentials.json
-      # SSH Key Pfad in der .env setzen 
-      - ${SSH_KEY_LOCAL_PATH}:/app/ssh_key
+      # SSH Key Pfad in der .env setzen, auf VPS mit lokaler DB nicht notwendig!
+      # - ${SSH_KEY_LOCAL_PATH}:/app/ssh_key
     restart: unless-stopped
