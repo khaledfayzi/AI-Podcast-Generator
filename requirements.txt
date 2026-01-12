@@ -2,6 +2,7 @@
 gradio==5.49.1
 python-multipart
 uvicorn
+flask
 
 # Google Cloud Services (KI & Voice)
 google-cloud-texttospeech
@@ -21,45 +22,14 @@ passlib
 # Audioverarbeitung
 pydub
 ffmpeg-python
-# Web Interface & Server
-gradio==5.49.1
-python-multipart
-uvicorn
-
-# Google Cloud Services (KI & Voice)
-google-cloud-texttospeech
-google-genai
-google-cloud-aiplatform
-
-# Datenbank & Sicherheit
-sqlalchemy
-pymysql
-python-dotenv
-sshtunnel
-paramiko==2.11.0
-cryptography
-argon2-cffi
-passlib
-
-# Audioverarbeitung
-pydub
-ffmpy  # Falls du ffmpy nutzt, sonst ffmpeg-python
+ffmpy
 
 # Quellen-Extraktion (PDF & Web)
 PyPDF2
 beautifulsoup4
 lxml
 requests
-
-# Hilfspakete
-numpy
-nltk
-pytest
-# Quellen-Extraktion (PDF & Web)
-PyPDF2
-beautifulsoup4
-lxml
-requests
+dnspython
 
 # Hilfspakete
 numpy

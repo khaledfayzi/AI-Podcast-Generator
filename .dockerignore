@@ -18,7 +18,6 @@ __pycache__
 .env
 
 # Data / Large Files
-# Wir kopieren diese nicht in das Image, sondern mounten sie wenn nötig
 data/
 output/
 pdfs_test/

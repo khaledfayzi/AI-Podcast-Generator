@@ -7,19 +7,19 @@ class BaseRepo:
     
     def get_all(self):
         """
-        Liefert alle Objekte des Modells.
+        Liefert alle Objekte des Modells
         """
         return self.db.query(self.model).all()
         
     def get_by_id(self, id):
         """
-        Liefert das Objekt mit der angegebenen ID.
+        Liefert das Objekt mit der angegebenen ID
         """
         return self.db.query(self.model).get(id)
         
     def add(self, obj):
         """
-        Fügt ein neues Objekt hinzu.
+        Fügt ein neues Objekt hinzu
         """
         self.db.add(obj)
         self.db.commit()
@@ -28,7 +28,7 @@ class BaseRepo:
         
     def delete(self, obj):
         """
-        Löscht ein Objekt.
+        Löscht ein Objekt
         """
         self.db.delete(obj)
         self.db.commit()
