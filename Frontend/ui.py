@@ -82,7 +82,7 @@ def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, ro
     if speaker2 and role2 and role2 != "Keine":
         roles[speaker2] = role2
 
-    return workflow._generate_script(
+    script_text = workflow._generate_script(
         thema=thema,
         sprache=sprache,
         dauer=int(dauer),
@@ -92,6 +92,9 @@ def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, ro
         zweitstimme=speaker2,
         source_text=source_text,
     )
+    
+    # We return the script text AND the update commands for the pages
+    return (script_text,) + navigate("skript bearbeiten")
 
 
 # Optional / Legacy – bleibt drin, falls irgendwo benutzt
@@ -107,14 +110,16 @@ def generate_audio_wrapper(script_text, thema, dauer, sprache, speaker1, speaker
 
 
 def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, user_data):
-    """Podcast aus dem Skript bauen."""
+    """Podcast aus dem Skript bauen und navigieren."""
     if not s2 or s2 == "Keine" or s2 == s1:
         s2 = None
 
     user_id = user_data["id"] if user_data else 1
-    return workflow.generate_audio_step(
+    workflow.generate_audio_step(
         script_text, thema, int(dauer), sprache, s1, s2, user_id=user_id
     )
+    return navigate_and_refresh_podcasts(user_data)
+
 
 
 def get_loader_html(message):
@@ -339,9 +344,11 @@ with gr.Blocks() as demo:
     # --- Loading ---
     with gr.Column(visible=False) as loading_page_script:
         gr.HTML(get_loader_html("Skript wird generiert..."))
+        btn_cancel_skript = gr.Button("Abbrechen", variant="secondary")
 
     with gr.Column(visible=False) as loading_page_podcast:
         gr.HTML(get_loader_html("Podcast wird generiert..."))
+        btn_cancel_podcast = gr.Button("Abbrechen", variant="secondary")
 
     # --- Login Page ---
     with gr.Column(visible=False) as login_page:
@@ -389,8 +396,8 @@ with gr.Blocks() as demo:
         outputs=[login_status_msg, current_user_state, btn_goto_login] + pages,
     )
 
-    # Skript generieren (mit Rollen + source_preview)
-    btn_skript_generieren.click(
+    # Skript generieren (mit Rollen + source_preview) + Cancel
+    skript_task = btn_skript_generieren.click(
         fn=lambda: navigate("loading script"),
         inputs=None,
         outputs=pages,
@@ -406,27 +413,39 @@ with gr.Blocks() as demo:
             dropdown_role2,
             source_preview,
         ],
-        outputs=text,
-    ).success(
-        fn=lambda: navigate("skript bearbeiten"),
+        outputs=[text] + pages
+    )
+
+    btn_cancel_skript.click(
+        fn=lambda: navigate("home"),
         inputs=None,
         outputs=pages,
+        cancels=skript_task,
     )
 
     btn_zuruck_deinepodcasts.click(fn=lambda: navigate("skript bearbeiten"), outputs=pages)
     btn_zuruck_skript.click(fn=lambda: navigate("home"), outputs=pages)
 
-    btn_podcast_generieren.click(
+    podcast_task = btn_podcast_generieren.click(
         fn=lambda: navigate("loading podcast"),
         outputs=pages,
     ).success(
         fn=run_audio_gen,
-        inputs=[text, textbox_thema, dropdown_dauer, dropdown_sprache, dropdown_speaker1, dropdown_speaker2, current_user_state],
-        outputs=None,
-    ).success(
-        fn=navigate_and_refresh_podcasts,
-        inputs=[current_user_state],
+        inputs=[text,
+                textbox_thema,
+                dropdown_dauer,
+                dropdown_sprache,
+                dropdown_speaker1,
+                dropdown_speaker2,
+                current_user_state],
         outputs=pages + [podcast_list_state],
+    )
+
+    btn_cancel_podcast.click(
+        fn=lambda: navigate("skript bearbeiten"),
+        inputs=None,
+        outputs=pages,
+        cancels=podcast_task,
     )
 
     btn_zuruck_audio.click(fn=navigate_and_refresh_podcasts, inputs=[current_user_state], outputs=pages + [podcast_list_state])
