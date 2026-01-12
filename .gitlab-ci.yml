@@ -6,19 +6,16 @@ build_image:
   image: docker:latest
   services:
     - docker:dind
-  variables:
   before_script:
-    # DEBUG: Variablen ausgeben (Passwort natürlich nicht!)
-    - echo "Registry: $CI_REGISTRY"
-    - echo "Image Name Original: $CI_REGISTRY_IMAGE"
+    # DEBUG
+    - 'echo "Registry: $CI_REGISTRY"'
+    - 'echo "Image Name Original: $CI_REGISTRY_IMAGE"'
     
-    # Sicherstellen, dass der Image-Name kleingeschrieben ist (Docker zickt bei Großbuchstaben!)
-    - export IMAGE_NAME_LOWER=$(echo "$CI_REGISTRY_IMAGE" | tr '[:upper:]' '[:lower:]')
-    - export IMAGE_TAG=$IMAGE_NAME_LOWER:$CI_COMMIT_SHORT_SHA
-    - export LATEST_TAG=$IMAGE_NAME_LOWER:latest
+    - 'export IMAGE_NAME_LOWER=$(echo "$CI_REGISTRY_IMAGE" | tr "[:upper:]" "[:lower:]")'
+    - 'export IMAGE_TAG=$IMAGE_NAME_LOWER:$CI_COMMIT_SHORT_SHA'
+    - 'export LATEST_TAG=$IMAGE_NAME_LOWER:latest'
     
-    # Login
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    - 'echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY'
   script:
     - docker build -t $IMAGE_TAG -t $LATEST_TAG .
     - docker push $IMAGE_TAG
