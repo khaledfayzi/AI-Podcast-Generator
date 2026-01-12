@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+
+# Python
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# IDEs
+.idea
+.vscode
+*.swp
+
+# Environment
+.env
+
+# Data / Large Files
+# Wir kopieren diese nicht in das Image, sondern mounten sie wenn nötig
+data/
+output/
+pdfs_test/
+*.mp3
+*.wav
+*.pdf
