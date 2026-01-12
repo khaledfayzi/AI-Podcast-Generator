@@ -169,11 +169,11 @@ class PodcastStimme(Base):
     __tablename__ = 'PodcastStimme'
     stimmeId = Column(Integer, primary_key=True, autoincrement=True)
 
-    # WICHTIG: Hier keine auftragId, keine Rolle, keine Emotion mehr!
-    # Das sind reine Stammdaten.
 
+    ui_slot = Column(Integer, default=0)
     name = Column(String(50), nullable=False, unique=True)  # z.B. "Hans"
-    ttsVoice = Column("tts_voice", String(50), nullable=False)  # z.B. "de-DE-Wavenet-A"
+    ttsVoice_de = Column("tts_voice_de", String(50), nullable=False)
+    ttsVoice_en = Column("tts_voice_en", String(50), nullable=False)
+
 
     geschlecht = Column(String(50), nullable=False)  # "m" oder "w"
-    sprache = Column(String(10), default="de")
