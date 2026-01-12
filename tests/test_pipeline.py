@@ -26,7 +26,7 @@ class TestPodcastWorkflowCI(unittest.TestCase):
     ):
         mock_session = MagicMock()
         MockGetDB.return_value = mock_session
-        MockUUID.return_value = "1234-5678"
+        MockUUID.return_value = "1234"
         
         mock_text_repo = MockTextRepo.return_value
         mock_text_repo.add.side_effect = lambda x: x 
@@ -71,7 +71,7 @@ class TestPodcastWorkflowCI(unittest.TestCase):
         mock_tts.generate_audio.assert_called_once()
         mock_text_repo.add.assert_called_once()
         
-        self.assertEqual(result_path, "Output/podcast_google_1234-5678.mp3")
+        self.assertEqual(result_path, "Output/podcast_google_1234.mp3")
 
 if __name__ == "__main__":
     unittest.main()
