@@ -31,8 +31,13 @@ def main():
         
         logger.info("Starting Gradio UI...")
         print("Starting Podcast Generator UI...")
+
+        # Wir nehmen jetzt den Servernamen und den Port aus der .env Datei
+        server_name = os.getenv("HOST", "127.0.0.1")
+        server_port = int(os.getenv("PORT", "7860"))
+
         demo.queue()
-        demo.launch() 
+        demo.launch(server_name=server_name, server_port=server_port) 
 
     except Exception as e:
         logger.error(f"Failed to start UI: {e}", exc_info=True)
