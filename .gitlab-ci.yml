@@ -1,25 +1,13 @@
 stages:
   - build
-
 build_image:
   stage: build
   image: docker:latest
   services:
     - docker:dind
-  before_script:
-    # DEBUG
-    - 'echo "Registry: $CI_REGISTRY"'
-    - 'echo "Image Name Original: $CI_REGISTRY_IMAGE"'
-    
-    - 'export IMAGE_NAME_LOWER=$(echo "$CI_REGISTRY_IMAGE" | tr "[:upper:]" "[:lower:]")'
-    - 'export IMAGE_TAG=$IMAGE_NAME_LOWER:$CI_COMMIT_SHORT_SHA'
-    - 'export LATEST_TAG=$IMAGE_NAME_LOWER:latest'
-    
-    - 'echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY'
   script:
-    - docker build -t $IMAGE_TAG -t $LATEST_TAG .
-    - docker push $IMAGE_TAG
-    - docker push $LATEST_TAG
+    - echo "Starte Docker Build zur Verifikation..."
+    - docker build .
   only:
     - main
     - dev
