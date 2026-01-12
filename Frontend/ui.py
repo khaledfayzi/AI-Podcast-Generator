@@ -22,8 +22,8 @@ from team04.database.database import get_db
 
 
 workflow = PodcastWorkflow()
-available_voices = workflow.get_voices()
-available_voices_2 = available_voices + ["Keine"]
+available_voices_primary, available_voices_secondary = workflow.get_voices_for_ui()
+available_voices_secondary_with_none = available_voices_secondary + ["Keine"]
 
 ROLE_OPTIONS = [
     "Moderator",
@@ -256,15 +256,25 @@ with gr.Blocks() as demo:
                 interactive=True,
             )
 
-        # Sprecher + Rollen
+        # Sprecher 1 (Hauptstimme) nutzt nur Slot 1
         with gr.Row():
-            dropdown_speaker1 = gr.Dropdown(choices=available_voices, label="Sprecher 1 (Hauptstimme)")
+            dropdown_speaker1 = gr.Dropdown(
+                choices=available_voices_primary,
+                label="Sprecher 1 (Hauptstimme)",
+                value=available_voices_primary[0] if available_voices_primary else None,
+                interactive=True
+            )
             dropdown_role1 = gr.Dropdown(choices=ROLE_OPTIONS, label="Rolle von Sprecher 1", value="Moderator")
 
+        # Sprecher 2 (Optional) nutzt nur Slot 2
         with gr.Row():
-            dropdown_speaker2 = gr.Dropdown(choices=available_voices_2, label="Sprecher 2 (Optional)", value="Keine")
+            dropdown_speaker2 = gr.Dropdown(
+                choices=available_voices_secondary_with_none,
+                label="Sprecher 2 (Optional)",
+                value="Keine",
+                interactive=True
+            )
             dropdown_role2 = gr.Dropdown(choices=ROLE_OPTIONS + ["Keine"], label="Rolle von Sprecher 2", value="Keine")
-
         textbox_thema = gr.Textbox(
             label="Thema",
             placeholder="Geben Sie das Thema ein...",
@@ -302,12 +312,25 @@ with gr.Blocks() as demo:
         btn_skript_generieren = gr.Button("Skript Generieren")
 
     # --- Skript Bearbeiten ---
+    # In deiner ui.py unter "Skript Bearbeiten"
     with gr.Column(visible=False) as skript_bearbeiten:
-        gr.Markdown("## Skript Bearbeiten")
+        gr.Markdown("##Skript Bearbeiten")
+
+        # NEU: Ein kleiner Info-Bereich für den Nutzer
+        with gr.Accordion("💡 Anleitung: So gestaltest du die Sprache", open=False):
+            gr.Markdown("""
+            Du kannst das Skript anpassen. Nutze diese Symbole für eine bessere Sprachausgabe:
+            - **Betonung:** Nutze `**Wort**` für starke oder `*Wort*` für mittlere Betonung.
+            - **Pausen:** Schreibe `[pause: 1s]` oder `[pause: 500ms]` für Stille.
+            - **Buchstabieren:** Nutze `[spell: KI]`, damit es 'K-I' statt 'Ki' ausgesprochen wird.
+            - **Datum/Zeit:** Nutze `[date: 10.10.2025]` oder `[dur: 2m 30s]`.
+            """)
+
         text = gr.Textbox(label="Podcast Skript", lines=15)
+
         with gr.Row():
             btn_zuruck_skript = gr.Button("Zurück")
-            btn_podcast_generieren = gr.Button("Podcast Generieren")
+            btn_podcast_generieren = gr.Button("Podcast Generieren", variant="primary")
 
     # --- Deine Podcasts ---
     with gr.Column(visible=False) as deine_podcasts:
