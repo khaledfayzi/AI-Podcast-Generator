@@ -1,24 +1,67 @@
+# Web Interface & Server
 gradio==5.49.1
-dnspython
-sqlalchemy
-python-dotenv
-pymysql
-numpy
-nltk
-pydub
-pydub
-requests
-sshtunnel
-flask
-google-cloud-texttospeech
-pytest
-paramiko==2.11.0
+python-multipart
+uvicorn
 
-# PDF / Quellen
+# Google Cloud Services (KI & Voice)
+google-cloud-texttospeech
+google-genai
+google-cloud-aiplatform
+
+# Datenbank & Sicherheit
+sqlalchemy
+pymysql
+python-dotenv
+sshtunnel
+paramiko==2.11.0
+cryptography
+argon2-cffi
+passlib
+
+# Audioverarbeitung
+pydub
+ffmpeg-python
+# Web Interface & Server
+gradio==5.49.1
+python-multipart
+uvicorn
+
+# Google Cloud Services (KI & Voice)
+google-cloud-texttospeech
+google-genai
+google-cloud-aiplatform
+
+# Datenbank & Sicherheit
+sqlalchemy
+pymysql
+python-dotenv
+sshtunnel
+paramiko==2.11.0
+cryptography
+argon2-cffi
+passlib
+
+# Audioverarbeitung
+pydub
+ffmpy  # Falls du ffmpy nutzt, sonst ffmpeg-python
+
+# Quellen-Extraktion (PDF & Web)
 PyPDF2
 beautifulsoup4
 lxml
+requests
 
-# Audio
-ffmpeg-python
-passlib
+# Hilfspakete
+numpy
+nltk
+pytest
+# Quellen-Extraktion (PDF & Web)
+PyPDF2
+beautifulsoup4
+lxml
+requests
+
+# Hilfspakete
+numpy
+nltk
+pytest
