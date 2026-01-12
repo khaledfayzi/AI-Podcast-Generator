@@ -1,28 +1,34 @@
+image: python:latest
+
+# Cache für Pip definieren, damit nicht jedes Mal alles neu heruntergeladen wird
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
 stages:
+  - test
   - build
+
+test_unit:
+  stage: test
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y ffmpeg
+  script:
+    - pip install -r requirements.txt
+    - python tests/test_pipeline.py
 
 build_image:
   stage: build
   image: docker:latest
   services:
     - docker:dind
-  variables:
-  before_script:
-    # DEBUG: Variablen ausgeben (Passwort natürlich nicht!)
-    - echo "Registry: $CI_REGISTRY"
-    - echo "Image Name Original: $CI_REGISTRY_IMAGE"
-    
-    # Sicherstellen, dass der Image-Name kleingeschrieben ist (Docker zickt bei Großbuchstaben!)
-    - export IMAGE_NAME_LOWER=$(echo "$CI_REGISTRY_IMAGE" | tr '[:upper:]' '[:lower:]')
-    - export IMAGE_TAG=$IMAGE_NAME_LOWER:$CI_COMMIT_SHORT_SHA
-    - export LATEST_TAG=$IMAGE_NAME_LOWER:latest
-    
-    # Login
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
   script:
-    - docker build -t $IMAGE_TAG -t $LATEST_TAG .
-    - docker push $IMAGE_TAG
-    - docker push $LATEST_TAG
+    - echo "Starte Docker Build zur Verifikation..."
+    - docker build .
   only:
     - main
     - dev
