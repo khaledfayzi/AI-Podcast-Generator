@@ -1,5 +1,28 @@
+image: python:latest
+
+# Cache für Pip definieren, damit nicht jedes Mal alles neu heruntergeladen wird
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
 stages:
+  - test
   - build
+
+
+test_unit:
+  stage: test
+  image: python:3.11-slim
+  before_script:
+    - apt-get update && apt-get install -y ffmpeg
+  script:
+    - pip install -r requirements.txt
+    - python tests/test_pipeline.py
+
+
 build_image:
   stage: build
   image: docker:latest
