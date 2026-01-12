@@ -18,3 +18,11 @@ class VoiceRepo(BaseRepo):
             return []
 
         return self.db.query(PodcastStimme).filter(PodcastStimme.name.in_(names)).all()
+
+    def get_voices_by_slot(self, slot: int) -> list[PodcastStimme]:
+        """
+        NEU: Holt alle Sprecher-Identitäten für einen bestimmten UI-Slot.
+        slot=1 -> Gruppe A (Max, Sarah, Thomas, Julia)
+        slot=2 -> Gruppe B (Lukas, Mia, Felix, Lena)
+        """
+        return self.db.query(PodcastStimme).filter(PodcastStimme.ui_slot == slot).all()
