@@ -311,12 +311,20 @@ with gr.Blocks() as demo:
 
         btn_skript_generieren = gr.Button("Skript Generieren")
 
+        # Podcast Liste auf der Home Page
+        gr.Markdown("---")
+        gr.Markdown("## Deine letzten Podcasts")
+
+        # Create a container for the dynamic podcast list
+        home_podcasts_html = gr.HTML(value="<p><i>Noch keine Podcasts vorhanden. Erstelle deinen ersten Podcast!</i></p>")
+
+        btn_view_all_podcasts = gr.Button("Alle Podcasts anzeigen", variant="secondary")
+
     # --- Skript Bearbeiten ---
-    # In deiner ui.py unter "Skript Bearbeiten"
     with gr.Column(visible=False) as skript_bearbeiten:
         gr.Markdown("##Skript Bearbeiten")
 
-        # NEU: Ein kleiner Info-Bereich für den Nutzer
+        # Ein kleiner Info-Bereich für den Nutzer
         with gr.Accordion("💡 Anleitung: So gestaltest du die Sprache", open=False):
             gr.Markdown("""
             Du kannst das Skript anpassen. Nutze diese Symbole für eine bessere Sprachausgabe:
@@ -405,18 +413,48 @@ with gr.Blocks() as demo:
         login_page,
     ]
 
+    # Function to render home podcasts
+    def render_home_podcasts(podcasts):
+        if not podcasts:
+            return gr.update(value="<p><i>Noch keine Podcasts vorhanden. Erstelle deinen ersten Podcast!</i></p>")
+        
+        html_content = ""
+        for p in podcasts[:5]:
+            html_content += f"""
+            <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+                <h3>{p['titel']}</h3>
+                <p>📅 {p['datum']} | ⏱️ {p['dauer']} Min</p>
+            </div>
+            """
+        return gr.update(value=html_content)
+
     # --- Events ---
     btn_goto_login.click(
         fn=handle_login_click,
         inputs=[current_user_state],
         outputs=[current_user_state, btn_goto_login] + pages,
     )
+    
+    btn_view_all_podcasts.click(
+        fn=navigate_and_refresh_podcasts,
+        inputs=[current_user_state],
+        outputs=pages + [podcast_list_state]
+    )
+    
     btn_back_from_login.click(fn=lambda: navigate("home"), outputs=pages)
     btn_request_code.click(fn=handle_login_request, inputs=[login_email_input], outputs=[login_status_msg, code_input_group])
     btn_verify_code.click(
         fn=handle_code_verify,
         inputs=[login_email_input, login_code_input],
         outputs=[login_status_msg, current_user_state, btn_goto_login] + pages,
+    ).then(
+        fn=lambda user_data: workflow.get_podcasts_data(user_id=user_data["id"] if user_data else None),
+        inputs=[current_user_state],
+        outputs=[podcast_list_state]
+    ).then(
+        fn=render_home_podcasts,
+        inputs=[podcast_list_state],
+        outputs=[home_podcasts_html]
     )
 
     # Skript generieren (mit Rollen + source_preview) + Cancel
@@ -471,7 +509,25 @@ with gr.Blocks() as demo:
         cancels=podcast_task,
     )
 
-    btn_zuruck_audio.click(fn=navigate_and_refresh_podcasts, inputs=[current_user_state], outputs=pages + [podcast_list_state])
+    btn_zuruck_audio.click(
+        fn=navigate_and_refresh_podcasts,
+        inputs=[current_user_state],
+        outputs=pages + [podcast_list_state]
+    )
+
+    # Load podcasts on app start
+    demo.load(
+        fn=lambda user_data: workflow.get_podcasts_data(user_id=user_data["id"] if user_data else None),
+        inputs=[current_user_state],
+        outputs=[podcast_list_state]
+    )
+
+    # Update home podcasts whenever podcast_list_state changes
+    podcast_list_state.change(
+        fn=render_home_podcasts,
+        inputs=[podcast_list_state],
+        outputs=[home_podcasts_html]
+    )
 
 
 if __name__ == "__main__":
