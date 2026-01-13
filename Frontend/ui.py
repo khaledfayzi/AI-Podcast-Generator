@@ -6,15 +6,12 @@ import sys
 import os
 import re
 
-from pathlib import Path
-from PyPDF2 import PdfReader
-import requests
-from bs4 import BeautifulSoup
 
 # Ensure we can import from team04
 # Fix damit die Imports aus team04 klappen
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
+from team04.services.input_processing import build_source_text
 from team04.services.workflow import PodcastWorkflow
 from team04.services.login_service import request_login_link, verify_login_link
 from team04.services.exceptions import AuthenticationError
@@ -143,49 +140,6 @@ def get_loader_html(message):
     """
 
 
-# Hilfer Funktion für daten hochladen
-def extract_text_from_file(file_path: str) -> str:
-    if not file_path:
-        return ""
-    ext = Path(file_path).suffix.lower()
-
-    if ext == ".pdf":
-        reader = PdfReader(file_path)
-        parts = []
-        for page in reader.pages:
-            parts.append(page.extract_text() or "")
-        return "\n".join(parts).strip()
-
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            return f.read().strip()
-    except Exception:
-        return ""
-
-
-def fetch_text_from_url(url: str) -> str:
-    if not url:
-        return ""
-    try:
-        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
-        r.raise_for_status()
-    except Exception:
-        return ""
-
-    soup = BeautifulSoup(r.text, "html.parser")
-    for tag in soup(["script", "style", "noscript"]):
-        tag.decompose()
-
-    text = soup.get_text("\n")
-    text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
-    return text.strip()
-
-
-def build_source_text(file_path, url):
-    file_text = extract_text_from_file(file_path) if file_path else ""
-    url_text = fetch_text_from_url(url.strip()) if url else ""
-    combined = file_text if file_text else url_text  # Datei > URL
-    return (combined or "")[:12000]
 
 
 # --- Login Logic ---
