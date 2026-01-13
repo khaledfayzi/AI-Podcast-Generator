@@ -1,3 +1,4 @@
+# gradio 5.49.1
 # NOTE: Benutzeroberfläche (Gradio Frontend)
 # Hier wird das Layout und der ganze Klick-Kram definiert.
 
@@ -15,6 +16,9 @@ from team04.services.input_processing import build_source_text
 from team04.services.workflow import PodcastWorkflow
 from team04.services.login_service import process_login_request, process_verify_login
 from team04.services.exceptions import AuthenticationError
+
+
+
 
 
 workflow = PodcastWorkflow()
@@ -41,6 +45,7 @@ def navigate(target):
         "loading script",
         "loading podcast",
         "login_page",
+        "uber_page",
     ]
     results = []
 
@@ -160,9 +165,12 @@ def handle_login_request(email):
 def handle_code_verify(email, code):
     try:
         user_data = process_verify_login(email, code)
+
+
+        short_name = user_data['email'].split('@')[0]
         
         msg = gr.update(value=f"Erfolgreich eingeloggt als {user_data['email']}!", visible=True)
-        btn_update = gr.update(value=f"Logout ({user_data['email']})", variant="secondary")
+        btn_update = gr.update(value=f"Logout ({short_name})", variant="secondary")
         
         return (msg, user_data, btn_update) + navigate("home")
     except AuthenticationError as e:
@@ -178,9 +186,29 @@ def handle_login_click(current_user):
         return (None, gr.update(value="🔑 Login", variant="secondary"), *navigate("home"))
     else:  # Login Page zeigen
         return (current_user, gr.update(), *navigate("login_page"))
+    
+
+# CSS to force buttons to auto-expand
+custom_css = """
+.header-btn {
+    /* Zwingt den Button, sich dem Text anzupassen */
+    width: fit-content !important;
+    
+    /* Verhindert, dass er zu klein wird (für "Login") */
+    min-width: 80px !important;
+    
+    /* Verhindert Umbrüche im Namen */
+    white-space: nowrap !important;
+    
+    /* Flexbox-Fixes, damit er nicht gequetscht wird */
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+}
+"""
 
 
-with gr.Blocks() as demo:
+with gr.Blocks(css=custom_css) as demo:
     # --- Global State ---
     current_user_state = gr.State(None)
     audio_state = gr.State()
@@ -188,90 +216,147 @@ with gr.Blocks() as demo:
 
     with gr.Column(visible=True) as home:
         with gr.Row():
-            gr.Markdown("# KI Podcast Generator")
-            with gr.Column(scale=0.2, min_width=100):
-                btn_goto_login = gr.Button("🔑 Login", size="sm", variant="secondary")
+            with gr.Column(scale=1):
+                gr.Markdown("# KI Podcast Generator")
+
+            with gr.Column(scale=0):
+                with gr.Row():
+                    btn_goto_uber = gr.Button("ℹ️ Über",
+                                            size="sm",
+                                            variant="secondary",
+                                            scale=0,
+                                            elem_classes="header-btn"
+                                            )
+                            
+                    btn_goto_login = gr.Button("🔑 Login",
+                                            size="sm",
+                                            variant="secondary",
+                                            scale=0,
+                                            elem_classes="header-btn"
+                                            )
 
         gr.Markdown("## Willkommen! Thema eingeben und Podcast abholen.")
 
-        # Dauer + Sprache
+        # Main content with spacers for centering
         with gr.Row():
-            dropdown_dauer = gr.Dropdown(
-                choices=["1", "2", "3", "4", "5"],
-                label="Dauer",
-                value="1",
-                interactive=True,
-            )
-            dropdown_sprache = gr.Dropdown(
-                choices=["Deutsch", "English"],
-                label="Sprache",
-                value="Deutsch",
-                interactive=True,
-            )
+            with gr.Column(scale=1):
+                pass  # Left Spacer
+            with gr.Column(scale=3):
+                # Dauer + Sprache
+                with gr.Row():
+                    dropdown_dauer = gr.Dropdown(
+                        choices=["1", "2", "3", "4", "5"],
+                        label="Dauer",
+                        value="1",
+                        interactive=True,
+                        scale=1,
+                    )
+                    dropdown_sprache = gr.Dropdown(
+                        choices=["Deutsch", "English"],
+                        label="Sprache",
+                        value="Deutsch",
+                        interactive=True,
+                        scale=1,
+                    )
 
-        # Sprecher 1 (Hauptstimme) nutzt nur Slot 1
-        with gr.Row():
-            dropdown_speaker1 = gr.Dropdown(
-                choices=available_voices_primary,
-                label="Sprecher 1 (Hauptstimme)",
-                value=available_voices_primary[0] if available_voices_primary else None,
-                interactive=True
-            )
-            dropdown_role1 = gr.Dropdown(choices=ROLE_OPTIONS, label="Rolle von Sprecher 1", value="Moderator")
+                # Sprecher 1 (Hauptstimme) nutzt nur Slot 1
+                with gr.Row():
+                    dropdown_speaker1 = gr.Dropdown(
+                        choices=available_voices_primary,
+                        label="Sprecher 1 (Hauptstimme)",
+                        value=available_voices_primary[0] if available_voices_primary else None,
+                        interactive=True,
+                        scale=1,
+                    )
+                    dropdown_role1 = gr.Dropdown(choices=ROLE_OPTIONS, label="Rolle von Sprecher 1", value="Moderator", scale=1)
 
-        # Sprecher 2 (Optional) nutzt nur Slot 2
-        with gr.Row():
-            dropdown_speaker2 = gr.Dropdown(
-                choices=available_voices_secondary_with_none,
-                label="Sprecher 2 (Optional)",
-                value="Keine",
-                interactive=True
-            )
-            dropdown_role2 = gr.Dropdown(choices=ROLE_OPTIONS + ["Keine"], label="Rolle von Sprecher 2", value="Keine")
-        textbox_thema = gr.Textbox(
-            label="Thema",
-            placeholder="Geben Sie das Thema ein...",
-            lines=5,
-            interactive=True,
-        )
+                # Sprecher 2 (Optional) nutzt nur Slot 2
+                with gr.Row():
+                    dropdown_speaker2 = gr.Dropdown(
+                        choices=available_voices_secondary_with_none,
+                        label="Sprecher 2 (Optional)",
+                        value="Keine",
+                        interactive=True,
+                        scale=1,
+                    )
+                    dropdown_role2 = gr.Dropdown(choices=ROLE_OPTIONS + ["Keine"], label="Rolle von Sprecher 2", value="Keine", scale=1)
+                
+                textbox_thema = gr.Textbox(
+                    label="Thema",
+                    placeholder="Geben Sie das Thema ein...",
+                    lines=4,
+                    interactive=True,
+                )
 
-        # Upload Felder
-        with gr.Row():
-            file_upload = gr.File(
-                label="PDF/TXT hochladen",
-                file_types=[".pdf", ".txt", ".md"],
-                type="filepath",
-            )
-            source_url = gr.Textbox(
-                label="Quelle / URL (optional)",
-                placeholder="https://...",
-                lines=1,
-            )
+                # Upload Felder
+                with gr.Row():
+                    file_upload = gr.File(
+                        label="PDF/TXT hochladen",
+                        file_types=[".pdf", ".txt", ".md"],
+                        type="filepath",
+                        scale=1,
+                    )
+                    source_url = gr.Textbox(
+                        label="Quelle / URL (optional)",
+                        placeholder="https://...",
+                        lines=1,
+                        scale=1,
+                    )
 
-        btn_quelle = gr.Button("Quelle übernehmen")
+                btn_quelle = gr.Button("Quelle übernehmen")
 
-        source_preview = gr.Textbox(
-            label="Quelle (Text, der ins Skript einfließt)",
-            lines=6,
-            interactive=True,
-        )
+                source_preview = gr.Textbox(
+                    label="Quelle (Text, der ins Skript einfließt)",
+                    lines=5,
+                    interactive=True,
+                )
 
-        btn_quelle.click(
-            fn=build_source_text,
-            inputs=[file_upload, source_url],
-            outputs=source_preview,
-        )
+                btn_quelle.click(
+                    fn=build_source_text,
+                    inputs=[file_upload, source_url],
+                    outputs=source_preview,
+                )
 
-        btn_skript_generieren = gr.Button("Skript Generieren")
+                btn_skript_generieren = gr.Button("Skript Generieren", variant="primary")
+            with gr.Column(scale=1):
+                pass  # Right Spacer
 
         # Podcast Liste auf der Home Page
         gr.Markdown("---")
         gr.Markdown("## Deine letzten Podcasts")
 
-        # Create a container for the dynamic podcast list
-        home_podcasts_html = gr.HTML(value="<p><i>Noch keine Podcasts vorhanden. Erstelle deinen ersten Podcast!</i></p>")
 
-        btn_view_all_podcasts = gr.Button("Alle Podcasts anzeigen", variant="secondary")
+        # Dynamic Render for Home Page
+        @gr.render(inputs=podcast_list_state)
+        def render_home_podcasts_list(podcasts):
+            if not podcasts:
+                gr.Markdown("<i>Noch keine Podcasts vorhanden. Erstelle deinen ersten Podcast!</i>")
+                return
+
+            # Show only the latest 3 podcasts on Home
+            for p in podcasts[:3]:
+                with gr.Group():
+                    with gr.Row(variant="panel"):
+                        with gr.Column(scale=4):
+                            gr.Markdown(f"### {p['titel']}")
+                            gr.Markdown(f"📅 {p['datum']} | ⏱️ {p['dauer']} Min")
+                        with gr.Column(scale=1):
+                            btn_play_home = gr.Button("▶ Play", variant="primary", size="sm")
+                            
+                            # Bind the click event to play the audio
+                            btn_play_home.click(
+                                fn=on_play_click,
+                                inputs=[gr.State(p["path"])],
+                                outputs=pages + [audio_player],
+                            )
+
+        with gr.Row():
+            with gr.Column(scale=1):
+                pass
+            with gr.Column(scale=0):
+                btn_view_all_podcasts = gr.Button("Alle Podcasts anzeigen", variant="secondary")
+            with gr.Column(scale=1):
+                pass
 
     # --- Skript Bearbeiten ---
     with gr.Column(visible=False) as skript_bearbeiten:
@@ -356,6 +441,38 @@ with gr.Blocks() as demo:
             with gr.Column(scale=1):
                 pass  # Rechter Spacer
 
+    # --- Über Page ---
+    with gr.Column(visible=False) as uber_page:
+        gr.Markdown("# Über den KI Podcast Generator")
+        
+        with gr.Row():
+            with gr.Column(scale=1):
+                pass  # Linker Spacer
+            with gr.Column(scale=3):
+                gr.Markdown("""
+                ## 🎙️ Willkommen beim KI Podcast Generator!
+                
+                Über den KI Podcast Generator
+                Unsere Mission ist es, die Podcast-Erstellung für jeden zugänglich zu
+                machen. Mit modernster KI-Technologie verwandeln wir deine Ideen in
+                professionelle Podcasts.
+
+                # Technologie
+
+                Unser KI Podcast Generator nutzt modernste Technologien:
+                    Text-to-Speech (TTS) Technologie mit natürlich klingenden Stimmen
+                    Emotionale Intelligenz für ausdrucksstarke Sprachausgabe
+                    Automatische PDF- und Textanalyse
+                
+                
+                ---
+                *Version 1.0 | Team04 | TH Köln*
+                """)
+                
+                btn_back_from_uber = gr.Button("Zurück", variant="primary")
+            with gr.Column(scale=1):
+                pass  # Rechter Spacer
+
     pages = [
         home,
         skript_bearbeiten,
@@ -364,24 +481,13 @@ with gr.Blocks() as demo:
         loading_page_script,
         loading_page_podcast,
         login_page,
+        uber_page,
     ]
 
-    # Function to render home podcasts
-    def render_home_podcasts(podcasts):
-        if not podcasts:
-            return gr.update(value="<p><i>Noch keine Podcasts vorhanden. Erstelle deinen ersten Podcast!</i></p>")
-        
-        html_content = ""
-        for p in podcasts[:5]:
-            html_content += f"""
-            <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
-                <h3>{p['titel']}</h3>
-                <p>📅 {p['datum']} | ⏱️ {p['dauer']} Min</p>
-            </div>
-            """
-        return gr.update(value=html_content)
-
     # --- Events ---
+    btn_goto_uber.click(fn=lambda: navigate("uber_page"), outputs=pages)
+    btn_back_from_uber.click(fn=lambda: navigate("home"), outputs=pages)
+    
     btn_goto_login.click(
         fn=handle_login_click,
         inputs=[current_user_state],
@@ -404,10 +510,6 @@ with gr.Blocks() as demo:
         fn=lambda user_data: workflow.get_podcasts_data(user_id=user_data["id"] if user_data else None),
         inputs=[current_user_state],
         outputs=[podcast_list_state]
-    ).then(
-        fn=render_home_podcasts,
-        inputs=[podcast_list_state],
-        outputs=[home_podcasts_html]
     )
 
     # Skript generieren (mit Rollen + source_preview) + Cancel
@@ -437,7 +539,7 @@ with gr.Blocks() as demo:
         cancels=skript_task,
     )
 
-    btn_zuruck_deinepodcasts.click(fn=lambda: navigate("skript bearbeiten"), outputs=pages)
+    btn_zuruck_deinepodcasts.click(fn=lambda: navigate("home"), outputs=pages)
     btn_zuruck_skript.click(fn=lambda: navigate("home"), outputs=pages)
 
     podcast_task = btn_podcast_generieren.click(
@@ -473,13 +575,6 @@ with gr.Blocks() as demo:
         fn=lambda user_data: workflow.get_podcasts_data(user_id=user_data["id"] if user_data else None),
         inputs=[current_user_state],
         outputs=[podcast_list_state]
-    )
-
-    # Update home podcasts whenever podcast_list_state changes
-    podcast_list_state.change(
-        fn=render_home_podcasts,
-        inputs=[podcast_list_state],
-        outputs=[home_podcasts_html]
     )
 
 
