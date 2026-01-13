@@ -13,9 +13,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 
 from team04.services.input_processing import build_source_text
 from team04.services.workflow import PodcastWorkflow
-from team04.services.login_service import request_login_link, verify_login_link
+from team04.services.login_service import process_login_request, process_verify_login
 from team04.services.exceptions import AuthenticationError
-from team04.database.database import get_db
 
 
 workflow = PodcastWorkflow()
@@ -151,8 +150,8 @@ def handle_login_request(email):
     if not validate_email(email):
         return gr.update(value="Bitte eine gültige Smail-Adresse eingeben!", visible=True), gr.update(visible=False)
     try:
-        db = get_db()
-        request_login_link(db, email)
+
+        process_login_request(email)
         return gr.update(value="Ein Code wurde an deine E-Mail gesendet.", visible=True), gr.update(visible=True)
     except Exception as e:
         return gr.update(value=f"Fehler: {str(e)}", visible=True), gr.update(visible=False)
@@ -160,11 +159,11 @@ def handle_login_request(email):
 
 def handle_code_verify(email, code):
     try:
-        db = get_db()
-        user = verify_login_link(db, email, code)
-        user_data = {"id": user.userId, "email": user.smailAdresse}
-        msg = gr.update(value=f"Erfolgreich eingeloggt als {user.smailAdresse}!", visible=True)
-        btn_update = gr.update(value=f"Logout ({user.smailAdresse})", variant="secondary")
+        user_data = process_verify_login(email, code)
+        
+        msg = gr.update(value=f"Erfolgreich eingeloggt als {user_data['email']}!", visible=True)
+        btn_update = gr.update(value=f"Logout ({user_data['email']})", variant="secondary")
+        
         return (msg, user_data, btn_update) + navigate("home")
     except AuthenticationError as e:
         return (gr.update(value=f"Login fehlgeschlagen: {str(e)}", visible=True), None, gr.update()) + tuple(

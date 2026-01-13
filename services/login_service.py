@@ -5,6 +5,7 @@ import string
 
 from passlib.hash import argon2
 
+from database.database import get_db
 from repositories.user_repo import UserRepo
 from services.exceptions import AuthenticationError
 from services.email_service import EmailService
@@ -68,3 +69,39 @@ def verify_login_link(db_session, email, input_token):
     # Wenn alles passt: Token löschen (Sicherheit!) und User-Objekt zurückgeben
     repo.clear_login_token(user)
     return user
+
+def process_login_request(email: str):
+    """
+    Wrapper that manages the DB session for a login request.
+    """
+    db = get_db()
+    try:
+        result = request_login_link(db, email)
+        db.commit()  # Ensure changes (like the new token) are saved
+        return result
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+def process_verify_login(email: str, code: str):
+    """
+    Wrapper that manages the DB session for login verification.
+    Returns a dictionary with user data to avoid detached instance errors.
+    """
+    db = get_db()
+    try:
+        user = verify_login_link(db, email, code)
+        db.commit()  # Save the token clearance
+        
+        # Return a dict (DTO) so we don't pass a detached SQLAlchemy object to the UI
+        return {
+            "id": user.userId,
+            "email": user.smailAdresse
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
