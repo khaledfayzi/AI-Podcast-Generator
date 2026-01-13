@@ -111,15 +111,25 @@ def generate_audio_wrapper(script_text, thema, dauer, sprache, speaker1, speaker
 
 
 def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, user_data):
-    """Podcast aus dem Skript bauen und navigieren."""
+    """Podcast aus dem Skript bauen, Player starten und Liste im Hintergrund aktualisieren."""
     if not s2 or s2 == "Keine" or s2 == s1:
         s2 = None
 
     user_id = user_data["id"] if user_data else 1
-    workflow.generate_audio_step(
+    
+    # 1. Generate the audio and capture the path
+    audio_path = workflow.generate_audio_step(
         script_text, thema, int(dauer), sprache, s1, s2, user_id=user_id
     )
-    return navigate_and_refresh_podcasts(user_data)
+    
+    # 2. Refresh the podcast list data (so the 'Your Podcasts' page is up to date when we go there later)
+    updated_data = workflow.get_podcasts_data(user_id=user_id)
+
+    # 3. Prepare navigation to Audio Player
+    nav_updates = navigate("audio player")
+    full_path = os.path.abspath(audio_path) if audio_path else None
+
+    return nav_updates + (gr.update(value=full_path, autoplay=True), updated_data)
 
 
 
@@ -554,7 +564,7 @@ with gr.Blocks(css=custom_css) as demo:
                 dropdown_speaker1,
                 dropdown_speaker2,
                 current_user_state],
-        outputs=pages + [podcast_list_state],
+        outputs=pages + [audio_player, podcast_list_state],
     )
 
     btn_cancel_podcast.click(
