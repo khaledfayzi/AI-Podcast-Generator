@@ -81,6 +81,22 @@ def process_login_request(email: str):
     """
     Wrapper that manages the DB session for a login request.
     """
+    # TEST MODE: Skip email verification
+    TEST_EMAIL = "test@smail.th-koeln.de"
+    if email.lower() == TEST_EMAIL:
+        db = get_db()
+        try:
+            user = UserRepo(db).get_by_email(email)
+            if not user:
+                user = UserRepo(db).create_user(email)
+            db.commit()
+            return {
+                "id": user.userId,
+                "email": user.smailAdresse
+            }
+        finally:
+            db.close()
+    
     db = get_db()
     try:
         result = request_login_link(db, email)
@@ -92,17 +108,33 @@ def process_login_request(email: str):
     finally:
         db.close()
 
+
 def process_verify_login(email: str, code: str):
     """
     Wrapper that manages the DB session for login verification.
-    Returns a dictionary with user data to avoid detached instance errors.
     """
+    # TEST MODE: Skip code verification
+    TEST_EMAIL = "test@smail.th-koeln.de"
+    TEST_CODE = "testtest"
+    
+    if email.lower() == TEST_EMAIL and code == TEST_CODE:
+        db = get_db()
+        try:
+            user = UserRepo(db).get_by_email(email)
+            if not user:
+                user = UserRepo(db).create_user(email)
+            db.commit()
+            return {
+                "id": user.userId,
+                "email": user.smailAdresse
+            }
+        finally:
+            db.close()
+    
     db = get_db()
     try:
         user = verify_login_link(db, email, code)
-        db.commit()  # Save the token clearance
-        
-        # Return a dict (DTO) so we don't pass a detached SQLAlchemy object to the UI
+        db.commit()
         return {
             "id": user.userId,
             "email": user.smailAdresse

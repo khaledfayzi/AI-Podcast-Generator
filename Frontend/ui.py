@@ -202,10 +202,10 @@ def handle_code_verify(email, code):
         return (msg, user_data, btn_update) + navigate("home")
     except AuthenticationError as e:
         return (gr.update(value=f"Login fehlgeschlagen: {str(e)}", visible=True), None, gr.update()) + tuple(
-            [gr.update()] * 7
+            [gr.update()] * 8
         )
     except Exception as e:
-        return (gr.update(value=f"Fehler: {str(e)}", visible=True), None, gr.update()) + tuple([gr.update()] * 7)
+        return (gr.update(value=f"Fehler: {str(e)}", visible=True), None, gr.update()) + tuple([gr.update()] * 8)
 
 
 def handle_login_click(current_user):
