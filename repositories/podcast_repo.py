@@ -20,3 +20,13 @@ class PodcastRepo(BaseRepo):
         Liefert alle Podcasts nach Erstelldatum absteigend sortiert
         """
         return self.db.query(Podcast).order_by(Podcast.erstelldatum.desc()).all()
+
+    def delete_by_id(self, podcast_id: int):
+        """
+        Löscht einen Podcast anhand seiner ID
+        """
+        podcast = self.db.query(Podcast).filter(Podcast.podcastId == podcast_id).first()
+        if podcast:
+            self.db.delete(podcast)
+            return True
+        return False

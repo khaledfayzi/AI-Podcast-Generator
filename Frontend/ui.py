@@ -132,6 +132,23 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, user_data):
     return nav_updates + (gr.update(value=full_path, autoplay=True), updated_data)
 
 
+def delete_podcast_handler(podcast_id: int, user_data):
+    """Handles podcast deletion and returns updated list."""
+    if not user_data:
+        return workflow.get_podcasts_data(user_id=None)
+    
+    user_id = user_data["id"]
+    workflow.delete_podcast(podcast_id, user_id)
+    return workflow.get_podcasts_data(user_id=user_id)
+
+
+def get_download_path(audio_path: str) -> str:
+    """Returns the absolute path for download."""
+    if audio_path:
+        return os.path.abspath(audio_path)
+    return None
+
+
 
 def get_loader_html(message):
     """Spinner-HTML für die Ladezeit."""
@@ -344,16 +361,25 @@ with gr.Blocks(css=custom_css) as demo:
                 return
 
             # Show only the latest 3 podcasts on Home
-            for p in podcasts[:3]:
+            for idx, p in enumerate(podcasts[:3]):
                 with gr.Group():
                     with gr.Row(variant="panel"):
                         with gr.Column(scale=4):
                             gr.Markdown(f"### {p['titel']}")
                             gr.Markdown(f"📅 {p['datum']} | ⏱️ {p['dauer']} Min")
                         with gr.Column(scale=1):
-                            btn_play_home = gr.Button("▶ Play", variant="primary", size="sm")
+                            with gr.Row():
+                                btn_play_home = gr.Button("▶", variant="primary", size="sm", scale=1)
+                                # DownloadButton with value set directly
+                                audio_full_path = os.path.abspath(p["path"]) if p["path"] else None
+                                btn_download_home = gr.DownloadButton(
+                                    "⤓", 
+                                    value=audio_full_path,
+                                    size="sm", 
+                                    scale=1
+                                )
                             
-                            # Bind the click event to play the audio
+                            # Bind play event
                             btn_play_home.click(
                                 fn=on_play_click,
                                 inputs=[gr.State(p["path"])],
@@ -392,24 +418,45 @@ with gr.Blocks(css=custom_css) as demo:
     with gr.Column(visible=False) as deine_podcasts:
         gr.Markdown("# Deine Podcasts")
 
-        @gr.render(inputs=podcast_list_state)
-        def render_podcasts(podcasts):
+        @gr.render(inputs=[podcast_list_state, current_user_state])
+        def render_podcasts(podcasts, user_data):
             if not podcasts:
                 gr.Markdown("Keine Podcasts gefunden.")
                 return
 
-            for p in podcasts:
+            for idx, p in enumerate(podcasts):
                 with gr.Group():
                     with gr.Row(variant="panel"):
                         with gr.Column(scale=4):
                             gr.Markdown(f"### {p['titel']}")
                             gr.Markdown(f"📅 {p['datum']} | ⏱️ {p['dauer']} Min")
                         with gr.Column(scale=1):
-                            btn_card_play = gr.Button("▶ Play", variant="primary")
+                            with gr.Row():
+                                btn_card_play = gr.Button("▶ Play", variant="primary", size="sm", scale=1)
+                                # DownloadButton with the file path set as value
+                                audio_full_path = os.path.abspath(p["path"]) if p["path"] else None
+                                btn_card_download = gr.DownloadButton(
+                                    "⤓ Download", 
+                                    value=audio_full_path,
+                                    size="sm", 
+                                    scale=1
+                                )
+                            with gr.Row():
+                                btn_card_delete = gr.Button("🗑️ Löschen", variant="stop", size="sm", scale=1)
+                            
+                            # Bind play event
                             btn_card_play.click(
                                 fn=on_play_click,
                                 inputs=[gr.State(p["path"])],
                                 outputs=pages + [audio_player],
+                            )
+                            
+                            # Bind delete event with proper podcast ID
+                            podcast_id = p.get("id")
+                            btn_card_delete.click(
+                                fn=lambda pid=podcast_id, ud=user_data: delete_podcast_handler(pid, ud),
+                                inputs=[],
+                                outputs=[podcast_list_state]
                             )
 
         btn_zuruck_deinepodcasts = gr.Button("Zurück")

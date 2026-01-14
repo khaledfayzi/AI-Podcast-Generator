@@ -1,4 +1,3 @@
-
 from datetime import date
 import os
 import uuid
@@ -217,6 +216,7 @@ class PodcastWorkflow:
             result = []
             for p in podcasts:
                 result.append({
+                    "id": p.podcastId,  # Add podcast ID for deletion
                     "titel": p.titel,
                     "dauer": p.realdauer,
                     "datum": str(p.erstelldatum),
@@ -285,6 +285,21 @@ class PodcastWorkflow:
             self._save_metadata(session, user_id, llm_id, tts_id, "", script, thema, dauer, sprache, db_p, db_s,
                                 audio_path)
             return audio_path
+        finally:
+            session.close()
+
+    def delete_podcast(self, podcast_id: int, user_id: int) -> bool:
+        """Deletes a podcast by ID, verifying user ownership."""
+        session = get_db()
+        try:
+            podcast_repo = PodcastRepo(session)
+            # Verify ownership before deletion
+            user_podcasts = podcast_repo.get_by_user_id(user_id)
+            if any(p.podcastId == podcast_id for p in user_podcasts):
+                podcast_repo.delete_by_id(podcast_id)
+                session.commit()
+                return True
+            return False
         finally:
             session.close()
 
