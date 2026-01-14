@@ -32,6 +32,13 @@ def request_login_link(db_session, email):
 
     now = datetime.datetime.now()
 
+    # Man kann nur alle 5 Minuten einen Link sich schicken lassen
+    if user.token_timestamp and (now - user.token_timestamp < datetime.timedelta(minutes=5)):
+        remaining = datetime.timedelta(minutes=5) - (now - user.token_timestamp)
+        minutes, seconds = divmod(remaining.seconds, 60)
+        raise AuthenticationError(f"Zu schnell. Du kannst erst in {minutes}:{seconds:02d} Min wieder einen Code anfordern.")
+
+
     # Ab in die DB mit dem Hash und dem Zeitstempel
     repo.set_login_token(user, hash_token, now)
     
