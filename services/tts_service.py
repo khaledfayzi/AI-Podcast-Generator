@@ -46,6 +46,7 @@ class GoogleTTSService(ITTSService):
 
         # 1. Konfiguration basierend auf der Sprache wählen
         is_de = sprache.lower() == "deutsch"
+        nltk_lang = 'german' if is_de else 'english'
 
         p_id = primary_voice.ttsVoice_de if is_de else primary_voice.ttsVoice_en
         voice_params_map = {
@@ -100,10 +101,10 @@ class GoogleTTSService(ITTSService):
         audio_segments = []
 
         for params, text_block in dialog_blocks:
-            chunks = self._text_splitter(text_block, max_chars=1000)
+            chunks = self._text_splitter(text_block, max_chars=2000, nltk_lang=nltk_lang)
 
             for chunk in chunks:
-                ssml_chunk = self._prepare_final_ssml(chunk)
+                ssml_chunk = self._prepare_final_ssml(chunk, nltk_lang=nltk_lang)
 
                 for attempt in range(3):
                     try:
@@ -134,11 +135,11 @@ class GoogleTTSService(ITTSService):
         return combined_audio
 
     @staticmethod
-    def _text_splitter(text: str, max_chars: int) -> list[str]:
+    def _text_splitter(text: str, max_chars: int, nltk_lang: str) -> list[str]:
         if len(text) <= max_chars: return [text]
         chunks_list = []
         current_chunk_str = ""
-        sentence_list = nltk.sent_tokenize(text)
+        sentence_list = nltk.sent_tokenize(text, language=nltk_lang)
         for sentence in sentence_list:
             if len(current_chunk_str) + len(sentence) < max_chars:
                 current_chunk_str += " " + sentence
@@ -155,33 +156,34 @@ class GoogleTTSService(ITTSService):
             name=tts_voice_string
         )
 
-    def _prepare_final_ssml(self, text: str) -> str:
+    def _prepare_final_ssml(self, text: str, nltk_lang: str) -> str:
         paragraphs = text.split('\n\n')
         processed_paragraphs = []
         for p_text in paragraphs:
             if not p_text.strip(): continue
-            sentences = nltk.sent_tokenize(p_text)
+            sentences = nltk.sent_tokenize(p_text, language=nltk_lang)
             s_joined = " ".join([f"<s>{s}</s>" for s in sentences])
             processed_paragraphs.append(f"<p>{s_joined}</p>")
 
-            full_ssml = "".join(processed_paragraphs)
+        full_ssml = "".join(processed_paragraphs)
 
-            # **Text** wird zu einer starken Betonung (höhere Lautstärke/langsameres Sprechen).
-            full_ssml = re.sub(r'\*\*(.*?)\*\*', r'<emphasis level="strong">\1</emphasis>', full_ssml)
+        # **Text** wird zu einer starken Betonung (höhere Lautstärke/langsameres Sprechen).
+        full_ssml = re.sub(r'\*\*(.*?)\*\*', r'<emphasis level="strong">\1</emphasis>', full_ssml)
 
-            # *Text* wird zu einer moderaten Betonung.
-            full_ssml = re.sub(r'\*(.*?)\*', r'<emphasis level="moderate">\1</emphasis>', full_ssml)
+        # *Text* wird zu einer moderaten Betonung.
+        full_ssml = re.sub(r'\*(.*?)\*', r'<emphasis level="moderate">\1</emphasis>', full_ssml)
 
-            # 3. SPEZIAL-SHORTCODES (PAUSEN UND AUSSPRACHE)
-            # Erlaubt Pausen wie [pause: 500ms] oder [pause: 1s].
-            full_ssml = re.sub(r'\[pause:\s*(.*?)\]', r'<break time="\1"/>', full_ssml)
+        # 3. SPEZIAL-SHORTCODES (PAUSEN UND AUSSPRACHE)
+        # Erlaubt Pausen wie [pause: 500ms] oder [pause: 1s].
+        full_ssml = re.sub(r'\[pause:\s*(.*?)\]', r'<break time="\1"/>', full_ssml)
 
-            # Buchstabiert den Inhalt (z.B. [spell: USA] -> U-S-A).
-            full_ssml = re.sub(r'\[spell:\s*(.*?)\]', r'<say-as interpret-as="characters">\1</say-as>', full_ssml)
+        # Buchstabiert den Inhalt (z.B. [spell: USA] -> U-S-A).
+        full_ssml = re.sub(r'\[spell:\s*(.*?)\]', r'<say-as interpret-as="characters">\1</say-as>', full_ssml)
 
-            # Löst das Problem mit Jahreszahlen (z.B. 1976 als "Neunzehnhundert..." statt "Eintausend...").
-            full_ssml = re.sub(r'\[year:\s*(\d{4})\]', r'<say-as interpret-as="date" format="y">\1</say-as>', full_ssml)
+        # Löst das Problem mit Jahreszahlen (z.B. 1976 als "Neunzehnhundert..." statt "Eintausend...").
+        full_ssml = re.sub(r'\[year:\s*(\d{4})\]', r'<say-as interpret-as="date" format="y">\1</say-as>', full_ssml)
 
-            # Korrekte Aussprache von Zeitangaben (z.B. [dur: 2h 30m]).
-            full_ssml = re.sub(r'\[dur:\s*(.*?)\]', r'<say-as interpret-as="duration">\1</say-as>', full_ssml)
+        # Korrekte Aussprache von Zeitangaben (z.B. [dur: 2h 30m]).
+        full_ssml = re.sub(r'\[dur:\s*(.*?)\]', r'<say-as interpret-as="duration">\1</say-as>', full_ssml)
+        
         return f"<speak>{full_ssml}</speak>"
