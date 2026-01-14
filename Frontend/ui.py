@@ -1,29 +1,30 @@
 # gradio 5.49.1
 # NOTE: Benutzeroberfläche (Gradio Frontend)
 # Hier wird das Layout und der ganze Klick-Kram definiert.
-import datetime
 
 import gradio as gr
 import sys
 import os
-import re
 
-
-# Ensure we can import from team04
 # Fix damit die Imports aus team04 klappen
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from team04.services.input_processing import build_source_text
-from team04.services.workflow import PodcastWorkflow
-from team04.services.login_service import process_login_request, process_verify_login
-from team04.services.exceptions import AuthenticationError
+# Import backend service instead of direct workflow/service imports
+from team04.services.ui_backend import (
+    get_available_voices,
+    generate_script,
+    generate_audio,
+    get_podcasts_for_user,
+    delete_podcast,
+    get_absolute_audio_path,
+    request_login_code,
+    verify_login_code,
+    get_user_display_name,
+    process_source_input,
+)
 
-
-
-
-
-workflow = PodcastWorkflow()
-available_voices_primary, available_voices_secondary = workflow.get_voices_for_ui()
+# Get available voices on startup
+available_voices_primary, available_voices_secondary = get_available_voices()
 available_voices_secondary_with_none = available_voices_secondary + ["Keine"]
 
 ROLE_OPTIONS = [
@@ -36,6 +37,7 @@ ROLE_OPTIONS = [
 ]
 
 
+# --- Navigation Helper ---
 def navigate(target):
     """Schaltet die Sichtbarkeit der Seiten um."""
     page_names = [
@@ -58,57 +60,50 @@ def navigate(target):
     return tuple(results)
 
 
+# --- UI Event Handlers (thin wrappers around backend) ---
 def on_play_click(audio_path):
     """Startet den Audio-Player mit dem richtigen File."""
     nav_updates = navigate("audio player")
-    full_path = os.path.abspath(audio_path) if audio_path else None
+    full_path = get_absolute_audio_path(audio_path)
     return nav_updates + (gr.update(value=full_path, autoplay=True),)
 
 
 def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, role2, source_text):
-    """Skript generieren mit Check ob man 1 oder 2 Sprecher hat."""
-    if not speaker2 or speaker2 == "Keine" or speaker2 == speaker1:
-        speaker2 = None
-        role2 = None
-
-    speakers = 2 if speaker2 else 1
-    roles = {speaker1: role1}
-    if speaker2 and role2 and role2 != "Keine":
-        roles[speaker2] = role2
-
-    script_text = workflow._generate_script(
+    """UI wrapper for script generation."""
+    script_text = generate_script(
         thema=thema,
+        dauer=dauer,
         sprache=sprache,
-        dauer=int(dauer),
-        speakers=speakers,
-        roles=roles,
-        hauptstimme=speaker1,
-        zweitstimme=speaker2,
+        speaker1=speaker1,
+        role1=role1,
+        speaker2=speaker2,
+        role2=role2,
         source_text=source_text,
     )
-    
-    # We return the script text AND the update commands for the pages
     return (script_text,) + navigate("skript bearbeiten")
 
 
 def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, user_data):
-    """Podcast aus dem Skript bauen, Player starten und Liste im Hintergrund aktualisieren."""
-    if not s2 or s2 == "Keine" or s2 == s1:
-        s2 = None
-
+    """Podcast aus dem Skript bauen, Player starten und Liste aktualisieren."""
     user_id = user_data["id"] if user_data else 1
     
-    # 1. Generate the audio and capture the path
-    audio_path = workflow.generate_audio_step(
-        script_text, thema, int(dauer), sprache, s1, s2, user_id=user_id
+    # Generate audio
+    audio_path = generate_audio(
+        script_text=script_text,
+        thema=thema,
+        dauer=dauer,
+        sprache=sprache,
+        speaker1=s1,
+        speaker2=s2,
+        user_id=user_id
     )
     
-    # 2. Refresh the podcast list data (so the 'Your Podcasts' page is up to date when we go there later)
-    updated_data = workflow.get_podcasts_data(user_id=user_id)
+    # Refresh podcast list
+    updated_data = get_podcasts_for_user(user_id=user_id)
 
-    # 3. Prepare navigation to Audio Player
+    # Navigate to audio player
     nav_updates = navigate("audio player")
-    full_path = os.path.abspath(audio_path) if audio_path else None
+    full_path = get_absolute_audio_path(audio_path)
 
     return nav_updates + (gr.update(value=full_path, autoplay=True), updated_data)
 
@@ -116,21 +111,62 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, user_data):
 def delete_podcast_handler(podcast_id: int, user_data):
     """Handles podcast deletion and returns updated list."""
     if not user_data:
-        return workflow.get_podcasts_data(user_id=None)
+        return get_podcasts_for_user(user_id=None)
     
     user_id = user_data["id"]
-    workflow.delete_podcast(podcast_id, user_id)
-    return workflow.get_podcasts_data(user_id=user_id)
+    delete_podcast(podcast_id, user_id)
+    return get_podcasts_for_user(user_id=user_id)
 
 
-def get_download_path(audio_path: str) -> str:
-    """Returns the absolute path for download."""
-    if audio_path:
-        return os.path.abspath(audio_path)
-    return None
+# --- Login Handlers ---
+def handle_login_request(email):
+    """Handles login code request."""
+    success, message = request_login_code(email)
+    if success:
+        return gr.update(value=message, visible=True), gr.update(visible=True)
+    return gr.update(value=message, visible=True), gr.update(visible=False)
 
 
+def handle_code_verify(email, code):
+    """Handles login code verification."""
+    success, user_data, message = verify_login_code(email, code)
+    
+    if success:
+        short_name = get_user_display_name(user_data)
+        msg = gr.update(value=message, visible=True)
+        btn_update = gr.update(value=f"Logout ({short_name})", variant="secondary")
+        return (msg, user_data, btn_update) + navigate("home")
+    else:
+        return (gr.update(value=message, visible=True), None, gr.update()) + tuple([gr.update()] * 7)
 
+
+def handle_login_click(current_user):
+    """Handles login/logout button click."""
+    if current_user:  # Logout
+        return (
+            None,                                    # current_user_state
+            gr.update(value="🔑 Login", variant="secondary"),  # btn_goto_login
+            *navigate("home"),                       # 7 pages
+            [],                                      # podcast_list_state
+            gr.update(value=""),                     # login_email_input
+            gr.update(value=""),                     # login_code_input
+            gr.update(visible=False),                # login_status_msg
+            gr.update(visible=False)                 # code_input_group
+        )
+    else:  # Show login page
+        return (
+            current_user, 
+            gr.update(), 
+            *navigate("login_page"), 
+            gr.update(),
+            gr.update(value=""),
+            gr.update(value=""),
+            gr.update(visible=False),
+            gr.update(visible=False)
+        )
+
+
+# --- Helper Functions ---
 def get_loader_html(message):
     """Spinner-HTML für die Ladezeit."""
     return f"""
@@ -152,81 +188,12 @@ def get_loader_html(message):
     """
 
 
-
-
-# --- Login Logic ---
-def validate_email(email):
-    return "smail" in email.lower() if email else False
-
-
-def handle_login_request(email):
-    if not validate_email(email):
-        return gr.update(value="Bitte eine gültige Smail-Adresse eingeben!", visible=True), gr.update(visible=False)
-    try:
-        process_login_request(email)
-        return gr.update(value="Check deine Mails 👀 — dein Code ist da! Er gilt 15 Minuten. In 5 Minuten kannst du dir einen neuen schicken lassen.", visible=True), gr.update(visible=True)
-    except Exception as e:
-        return gr.update(value=f"Fehler: {str(e)}", visible=True), gr.update(visible=False)
-
-
-def handle_code_verify(email, code):
-    try:
-        user_data = process_verify_login(email, code)
-
-
-        short_name = user_data['email'].split('@')[0]
-        
-        msg = gr.update(value=f"Erfolgreich eingeloggt als {user_data['email']}!", visible=True)
-        btn_update = gr.update(value=f"Logout ({short_name})", variant="secondary")
-        
-        return (msg, user_data, btn_update) + navigate("home")
-    except AuthenticationError as e:
-        return (gr.update(value=f"Login fehlgeschlagen: {str(e)}", visible=True), None, gr.update()) + tuple(
-            [gr.update()] * 7
-        )
-    except Exception as e:
-        return (gr.update(value=f"Fehler: {str(e)}", visible=True), None, gr.update()) + tuple([gr.update()] * 7)
-
-
-def handle_login_click(current_user):
-    if current_user:  # Logout
-        # Clear the podcast list and the login fields when logging out
-        return (
-            None,                                    # current_user_state
-            gr.update(value="🔑 Login", variant="secondary"),  # btn_goto_login
-            *navigate("home"),                       # 7 pages
-            [],                                       # podcast_list_state (clear podcasts)
-            gr.update(value=""),                     # login_email_input (clear email)
-            gr.update(value=""),                     # login_code_input (clear code)
-            gr.update(visible=False),                # login_status_msg (hide message)
-            gr.update(visible=False)                 # code_input_group (hide code input)
-        )
-    else:  # Login Page zeigen
-        # Clear login fields and hide code input group
-        return (
-            current_user, 
-            gr.update(), 
-            *navigate("login_page"), 
-            gr.update(),              # podcast_list_state
-            gr.update(value=""),      # Clear email input
-            gr.update(value=""),      # Clear code input
-            gr.update(visible=False), # Hide status message
-            gr.update(visible=False)  # Hide code input group
-        )
-
 # CSS to force buttons to auto-expand
 custom_css = """
 .header-btn {
-    /* Zwingt den Button, sich dem Text anzupassen */
     width: fit-content !important;
-    
-    /* Verhindert, dass er zu klein wird (für "Login") */
     min-width: 80px !important;
-    
-    /* Verhindert Umbrüche im Namen */
     white-space: nowrap !important;
-    
-    /* Flexbox-Fixes, damit er nicht gequetscht wird */
     flex: 0 0 auto !important;
     display: inline-flex !important;
     justify-content: center !important;
@@ -338,7 +305,7 @@ with gr.Blocks(css=custom_css) as demo:
                 )
 
                 btn_quelle.click(
-                    fn=build_source_text,
+                    fn=process_source_input,
                     inputs=[file_upload, source_url],
                     outputs=source_preview,
                 )
@@ -359,7 +326,6 @@ with gr.Blocks(css=custom_css) as demo:
                 gr.Markdown("<i>Noch keine Podcasts vorhanden. Erstelle deinen ersten Podcast!</i>")
                 return
 
-            # Show all podcasts on Home
             for idx, p in enumerate(podcasts):
                 with gr.Group():
                     with gr.Row(variant="panel"):
@@ -369,8 +335,7 @@ with gr.Blocks(css=custom_css) as demo:
                         with gr.Column(scale=1):
                             with gr.Row():
                                 btn_play_home = gr.Button("▶ Play", variant="primary", size="sm", scale=1)
-                                # DownloadButton with value set directly
-                                audio_full_path = os.path.abspath(p["path"]) if p["path"] else None
+                                audio_full_path = get_absolute_audio_path(p["path"])
                                 btn_download_home = gr.DownloadButton(
                                     "⤓ Download", 
                                     value=audio_full_path,
@@ -380,14 +345,12 @@ with gr.Blocks(css=custom_css) as demo:
                             with gr.Row():
                                 btn_delete_home = gr.Button("🗑️ Löschen", variant="stop", size="sm", scale=1)
                             
-                            # Bind play event
                             btn_play_home.click(
                                 fn=on_play_click,
                                 inputs=[gr.State(p["path"])],
                                 outputs=pages + [audio_player],
                             )
                             
-                            # Bind delete event with proper podcast ID
                             podcast_id = p.get("id")
                             btn_delete_home.click(
                                 fn=lambda pid=podcast_id, ud=user_data: delete_podcast_handler(pid, ud),
@@ -399,7 +362,6 @@ with gr.Blocks(css=custom_css) as demo:
     with gr.Column(visible=False) as skript_bearbeiten:
         gr.Markdown("## Skript Bearbeiten")
 
-        # Ein kleiner Info-Bereich für den Nutzer
         with gr.Accordion("💡 Anleitung: So gestaltest du die Sprache", open=False):
             gr.Markdown("""
             Du kannst das Skript anpassen. Nutze diese Symbole für eine bessere Sprachausgabe:
@@ -437,7 +399,7 @@ with gr.Blocks(css=custom_css) as demo:
 
         with gr.Row():
             with gr.Column(scale=1):
-                pass  # Linker Spacer
+                pass
             with gr.Column(scale=2):
                 login_email_input = gr.Textbox(label="E-Mail Adresse", placeholder="dein.name@smail.th-koeln.de")
                 login_status_msg = gr.Markdown("", visible=False)
@@ -450,7 +412,7 @@ with gr.Blocks(css=custom_css) as demo:
 
                 btn_back_from_login = gr.Button("Zurück zum Start")
             with gr.Column(scale=1):
-                pass  # Rechter Spacer
+                pass
 
     # --- Über Page ---
     with gr.Column(visible=False) as uber_page:
@@ -458,7 +420,7 @@ with gr.Blocks(css=custom_css) as demo:
         
         with gr.Row():
             with gr.Column(scale=1):
-                pass  # Linker Spacer
+                pass
             with gr.Column(scale=3):
                 gr.Markdown("""
                 ## 🎙️ Willkommen beim KI Podcast Generator!
@@ -482,7 +444,7 @@ with gr.Blocks(css=custom_css) as demo:
                 
                 btn_back_from_uber = gr.Button("Zurück", variant="primary")
             with gr.Column(scale=1):
-                pass  # Rechter Spacer
+                pass
 
     pages = [
         home,
@@ -520,12 +482,12 @@ with gr.Blocks(css=custom_css) as demo:
         inputs=[login_email_input, login_code_input],
         outputs=[login_status_msg, current_user_state, btn_goto_login] + pages,
     ).then(
-        fn=lambda user_data: workflow.get_podcasts_data(user_id=user_data["id"] if user_data else None),
+        fn=lambda user_data: get_podcasts_for_user(user_id=user_data["id"] if user_data else None),
         inputs=[current_user_state],
         outputs=[podcast_list_state]
     )
 
-    # Skript generieren (mit Rollen + source_preview) + Cancel
+    # Skript generieren + Cancel
     skript_task = btn_skript_generieren.click(
         fn=lambda: navigate("loading script"),
         inputs=None,
@@ -576,16 +538,14 @@ with gr.Blocks(css=custom_css) as demo:
         cancels=podcast_task,
     )
 
-    # Navigate back to home and refresh podcast list
     btn_zuruck_audio.click(
-        fn=lambda user_data: navigate("home") + (workflow.get_podcasts_data(user_id=user_data["id"] if user_data else None),),
+        fn=lambda user_data: navigate("home") + (get_podcasts_for_user(user_id=user_data["id"] if user_data else None),),
         inputs=[current_user_state],
         outputs=pages + [podcast_list_state]
     )
 
-    # Load podcasts on app start
     demo.load(
-        fn=lambda user_data: workflow.get_podcasts_data(user_id=user_data["id"] if user_data else None),
+        fn=lambda user_data: get_podcasts_for_user(user_id=user_data["id"] if user_data else None),
         inputs=[current_user_state],
         outputs=[podcast_list_state]
     )
