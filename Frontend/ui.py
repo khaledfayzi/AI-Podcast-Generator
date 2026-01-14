@@ -1,6 +1,7 @@
 # gradio 5.49.1
 # NOTE: Benutzeroberfläche (Gradio Frontend)
 # Hier wird das Layout und der ganze Klick-Kram definiert.
+import datetime
 
 import gradio as gr
 import sys
@@ -182,9 +183,8 @@ def handle_login_request(email):
     if not validate_email(email):
         return gr.update(value="Bitte eine gültige Smail-Adresse eingeben!", visible=True), gr.update(visible=False)
     try:
-
         process_login_request(email)
-        return gr.update(value="Ein Code wurde an deine E-Mail gesendet.", visible=True), gr.update(visible=True)
+        return gr.update(value="Check deine Mails 👀 — dein Code ist da! Er gilt 15 Minuten. In 5 Minuten kannst du dir einen neuen schicken lassen.", visible=True), gr.update(visible=True)
     except Exception as e:
         return gr.update(value=f"Fehler: {str(e)}", visible=True), gr.update(visible=False)
 
