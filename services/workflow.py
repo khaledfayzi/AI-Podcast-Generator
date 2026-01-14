@@ -119,7 +119,7 @@ class PodcastWorkflow:
             filepath = os.path.join(output_dir, filename)
             db_path = os.path.join("Output", filename)
 
-            audio_segment.export(filepath, format="mp3", bitrate="192k")
+            audio_segment.export(filepath, format="mp3")
             logger.info(f"Audio erfolgreich gespeichert: {filepath}")
             return db_path
         except Exception as e:
