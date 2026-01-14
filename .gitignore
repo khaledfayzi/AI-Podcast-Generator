@@ -25,6 +25,10 @@ doctemplate.wiki
 scripts
 pdfs_test
 
+tests/tests_tts_voices.py
+tests/*.mp3
+Ideen_für_die_Präsentation.txt
+
 Besprechen.txt
 .json!/team04/services/output/
 syp-ki-podcast-generator-e94d5e3f0360.json
