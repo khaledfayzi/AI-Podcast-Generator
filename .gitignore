@@ -27,7 +27,7 @@ pdfs_test
 
 tests/tests_tts_voices.py
 tests/*.mp3
-Ideen_für_die_Präsentation.txt
+services/__pycache__/tts_service.cpython-313.pyc
 
 Besprechen.txt
 .json!/team04/services/output/
