@@ -210,10 +210,29 @@ def handle_code_verify(email, code):
 
 def handle_login_click(current_user):
     if current_user:  # Logout
-        return (None, gr.update(value="🔑 Login", variant="secondary"), *navigate("home"))
+        # Clear the podcast list and the login fields when logging out
+        return (
+            None,                                    # current_user_state
+            gr.update(value="🔑 Login", variant="secondary"),  # btn_goto_login
+            *navigate("home"),                       # 8 pages
+            [],                                       # podcast_list_state (clear podcasts)
+            gr.update(value=""),                     # login_email_input (clear email)
+            gr.update(value=""),                     # login_code_input (clear code)
+            gr.update(visible=False),                # login_status_msg (hide message)
+            gr.update(visible=False)                 # code_input_group (hide code input)
+        )
     else:  # Login Page zeigen
-        return (current_user, gr.update(), *navigate("login_page"))
-    
+        # Clear login fields and hide code input group
+        return (
+            current_user, 
+            gr.update(), 
+            *navigate("login_page"), 
+            gr.update(),              # podcast_list_state (don't change)
+            gr.update(value=""),      # Clear email input
+            gr.update(value=""),      # Clear code input
+            gr.update(visible=False), # Hide status message
+            gr.update(visible=False)  # Hide code input group
+        )
 
 # CSS to force buttons to auto-expand
 custom_css = """
@@ -548,7 +567,16 @@ with gr.Blocks(css=custom_css) as demo:
     btn_goto_login.click(
         fn=handle_login_click,
         inputs=[current_user_state],
-        outputs=[current_user_state, btn_goto_login] + pages,
+        outputs=[
+            current_user_state, 
+            btn_goto_login
+        ] + pages + [
+            podcast_list_state,
+            login_email_input,
+            login_code_input,
+            login_status_msg,
+            code_input_group
+        ],
     )
     
     btn_view_all_podcasts.click(
