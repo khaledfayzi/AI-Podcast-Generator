@@ -41,7 +41,6 @@ def navigate(target):
     page_names = [
         "home",
         "skript bearbeiten",
-        "deine podcasts",
         "audio player",
         "loading script",
         "loading podcast",
@@ -57,13 +56,6 @@ def navigate(target):
             results.append(gr.update(visible=False))
 
     return tuple(results)
-
-
-def navigate_and_refresh_podcasts(user_data):
-    """Lädt die Podcasts neu, aber nur für den eingeloggten User."""
-    user_id = user_data["id"] if user_data else None
-    data = workflow.get_podcasts_data(user_id=user_id)
-    return navigate("deine podcasts") + (data,)
 
 
 def on_play_click(audio_path):
@@ -97,18 +89,6 @@ def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, ro
     
     # We return the script text AND the update commands for the pages
     return (script_text,) + navigate("skript bearbeiten")
-
-
-# Optional / Legacy – bleibt drin, falls irgendwo benutzt
-def generate_audio_wrapper(script_text, thema, dauer, sprache, speaker1, speaker2):
-    return workflow.generate_audio_step(
-        script_text=script_text,
-        thema=thema,
-        dauer=int(dauer),
-        sprache=sprache,
-        hauptstimme=speaker1,
-        zweitstimme=speaker2,
-    )
 
 
 def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, user_data):
@@ -202,10 +182,10 @@ def handle_code_verify(email, code):
         return (msg, user_data, btn_update) + navigate("home")
     except AuthenticationError as e:
         return (gr.update(value=f"Login fehlgeschlagen: {str(e)}", visible=True), None, gr.update()) + tuple(
-            [gr.update()] * 8
+            [gr.update()] * 7
         )
     except Exception as e:
-        return (gr.update(value=f"Fehler: {str(e)}", visible=True), None, gr.update()) + tuple([gr.update()] * 8)
+        return (gr.update(value=f"Fehler: {str(e)}", visible=True), None, gr.update()) + tuple([gr.update()] * 7)
 
 
 def handle_login_click(current_user):
@@ -214,7 +194,7 @@ def handle_login_click(current_user):
         return (
             None,                                    # current_user_state
             gr.update(value="🔑 Login", variant="secondary"),  # btn_goto_login
-            *navigate("home"),                       # 8 pages
+            *navigate("home"),                       # 7 pages
             [],                                       # podcast_list_state (clear podcasts)
             gr.update(value=""),                     # login_email_input (clear email)
             gr.update(value=""),                     # login_code_input (clear code)
@@ -227,7 +207,7 @@ def handle_login_click(current_user):
             current_user, 
             gr.update(), 
             *navigate("login_page"), 
-            gr.update(),              # podcast_list_state (don't change)
+            gr.update(),              # podcast_list_state
             gr.update(value=""),      # Clear email input
             gr.update(value=""),      # Clear code input
             gr.update(visible=False), # Hide status message
@@ -369,18 +349,18 @@ with gr.Blocks(css=custom_css) as demo:
 
         # Podcast Liste auf der Home Page
         gr.Markdown("---")
-        gr.Markdown("## Deine letzten Podcasts")
+        gr.Markdown("## Deine Podcasts")
 
 
         # Dynamic Render for Home Page
-        @gr.render(inputs=podcast_list_state)
-        def render_home_podcasts_list(podcasts):
+        @gr.render(inputs=[podcast_list_state, current_user_state])
+        def render_home_podcasts_list(podcasts, user_data):
             if not podcasts:
                 gr.Markdown("<i>Noch keine Podcasts vorhanden. Erstelle deinen ersten Podcast!</i>")
                 return
 
-            # Show only the latest 3 podcasts on Home
-            for idx, p in enumerate(podcasts[:3]):
+            # Show all podcasts on Home
+            for idx, p in enumerate(podcasts):
                 with gr.Group():
                     with gr.Row(variant="panel"):
                         with gr.Column(scale=4):
@@ -388,15 +368,17 @@ with gr.Blocks(css=custom_css) as demo:
                             gr.Markdown(f"📅 {p['datum']} | ⏱️ {p['dauer']} Min")
                         with gr.Column(scale=1):
                             with gr.Row():
-                                btn_play_home = gr.Button("▶", variant="primary", size="sm", scale=1)
+                                btn_play_home = gr.Button("▶ Play", variant="primary", size="sm", scale=1)
                                 # DownloadButton with value set directly
                                 audio_full_path = os.path.abspath(p["path"]) if p["path"] else None
                                 btn_download_home = gr.DownloadButton(
-                                    "⤓", 
+                                    "⤓ Download", 
                                     value=audio_full_path,
                                     size="sm", 
                                     scale=1
                                 )
+                            with gr.Row():
+                                btn_delete_home = gr.Button("🗑️ Löschen", variant="stop", size="sm", scale=1)
                             
                             # Bind play event
                             btn_play_home.click(
@@ -404,18 +386,18 @@ with gr.Blocks(css=custom_css) as demo:
                                 inputs=[gr.State(p["path"])],
                                 outputs=pages + [audio_player],
                             )
-
-        with gr.Row():
-            with gr.Column(scale=1):
-                pass
-            with gr.Column(scale=0):
-                btn_view_all_podcasts = gr.Button("Alle Podcasts anzeigen", variant="secondary")
-            with gr.Column(scale=1):
-                pass
+                            
+                            # Bind delete event with proper podcast ID
+                            podcast_id = p.get("id")
+                            btn_delete_home.click(
+                                fn=lambda pid=podcast_id, ud=user_data: delete_podcast_handler(pid, ud),
+                                inputs=[],
+                                outputs=[podcast_list_state]
+                            )
 
     # --- Skript Bearbeiten ---
     with gr.Column(visible=False) as skript_bearbeiten:
-        gr.Markdown("##Skript Bearbeiten")
+        gr.Markdown("## Skript Bearbeiten")
 
         # Ein kleiner Info-Bereich für den Nutzer
         with gr.Accordion("💡 Anleitung: So gestaltest du die Sprache", open=False):
@@ -433,58 +415,11 @@ with gr.Blocks(css=custom_css) as demo:
             btn_zuruck_skript = gr.Button("Zurück")
             btn_podcast_generieren = gr.Button("Podcast Generieren", variant="primary")
 
-    # --- Deine Podcasts ---
-    with gr.Column(visible=False) as deine_podcasts:
-        gr.Markdown("# Deine Podcasts")
-
-        @gr.render(inputs=[podcast_list_state, current_user_state])
-        def render_podcasts(podcasts, user_data):
-            if not podcasts:
-                gr.Markdown("Keine Podcasts gefunden.")
-                return
-
-            for idx, p in enumerate(podcasts):
-                with gr.Group():
-                    with gr.Row(variant="panel"):
-                        with gr.Column(scale=4):
-                            gr.Markdown(f"### {p['titel']}")
-                            gr.Markdown(f"📅 {p['datum']} | ⏱️ {p['dauer']} Min")
-                        with gr.Column(scale=1):
-                            with gr.Row():
-                                btn_card_play = gr.Button("▶ Play", variant="primary", size="sm", scale=1)
-                                # DownloadButton with the file path set as value
-                                audio_full_path = os.path.abspath(p["path"]) if p["path"] else None
-                                btn_card_download = gr.DownloadButton(
-                                    "⤓ Download", 
-                                    value=audio_full_path,
-                                    size="sm", 
-                                    scale=1
-                                )
-                            with gr.Row():
-                                btn_card_delete = gr.Button("🗑️ Löschen", variant="stop", size="sm", scale=1)
-                            
-                            # Bind play event
-                            btn_card_play.click(
-                                fn=on_play_click,
-                                inputs=[gr.State(p["path"])],
-                                outputs=pages + [audio_player],
-                            )
-                            
-                            # Bind delete event with proper podcast ID
-                            podcast_id = p.get("id")
-                            btn_card_delete.click(
-                                fn=lambda pid=podcast_id, ud=user_data: delete_podcast_handler(pid, ud),
-                                inputs=[],
-                                outputs=[podcast_list_state]
-                            )
-
-        btn_zuruck_deinepodcasts = gr.Button("Zurück")
-
     # --- Player ---
     with gr.Column(visible=False) as audio_player_page:
         gr.Markdown("## Audio Player")
         audio_player = gr.Audio(label="Podcast", type="filepath")
-        btn_zuruck_audio = gr.Button("Zurück zu Deinen Podcasts")
+        btn_zuruck_audio = gr.Button("Zurück zur Startseite")
 
     # --- Loading ---
     with gr.Column(visible=False) as loading_page_script:
@@ -552,7 +487,6 @@ with gr.Blocks(css=custom_css) as demo:
     pages = [
         home,
         skript_bearbeiten,
-        deine_podcasts,
         audio_player_page,
         loading_page_script,
         loading_page_podcast,
@@ -577,12 +511,6 @@ with gr.Blocks(css=custom_css) as demo:
             login_status_msg,
             code_input_group
         ],
-    )
-    
-    btn_view_all_podcasts.click(
-        fn=navigate_and_refresh_podcasts,
-        inputs=[current_user_state],
-        outputs=pages + [podcast_list_state]
     )
     
     btn_back_from_login.click(fn=lambda: navigate("home"), outputs=pages)
@@ -624,7 +552,6 @@ with gr.Blocks(css=custom_css) as demo:
         cancels=skript_task,
     )
 
-    btn_zuruck_deinepodcasts.click(fn=lambda: navigate("home"), outputs=pages)
     btn_zuruck_skript.click(fn=lambda: navigate("home"), outputs=pages)
 
     podcast_task = btn_podcast_generieren.click(
@@ -649,8 +576,9 @@ with gr.Blocks(css=custom_css) as demo:
         cancels=podcast_task,
     )
 
+    # Navigate back to home and refresh podcast list
     btn_zuruck_audio.click(
-        fn=navigate_and_refresh_podcasts,
+        fn=lambda user_data: navigate("home") + (workflow.get_podcasts_data(user_id=user_data["id"] if user_data else None),),
         inputs=[current_user_state],
         outputs=pages + [podcast_list_state]
     )
