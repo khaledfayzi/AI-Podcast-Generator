@@ -84,7 +84,7 @@ def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, ro
     return (script_text,) + navigate("skript bearbeiten")
 
 
-def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, user_data):
+def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data):
     """Podcast aus dem Skript bauen, Player starten und Liste aktualisieren."""
     user_id = user_data["id"] if user_data else 1
     
@@ -96,7 +96,9 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, user_data):
         sprache=sprache,
         speaker1=s1,
         speaker2=s2,
-        user_id=user_id
+        user_id=user_id,
+        role1=r1,  # NEU
+        role2=r2   # NEU
     )
     
     # Refresh podcast list
@@ -306,7 +308,6 @@ input, textarea {
     border: none !important;
     background: transparent !important;
     background-color: transparent !important;
-    box-shadow: none !important;
 }
 
 /* Target Gradio's panel variant specifically */
@@ -469,7 +470,13 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
                     with gr.Row(variant="panel"):
                         with gr.Column(scale=4):
                             gr.Markdown(f"### 🎙️ {p['titel']}")
-                            gr.Markdown(f"📅 {p['datum']} | ⏱️ {p['dauer']} Min")
+                            # Updated metadata display
+                            metadata = f"📅 {p['datum']} | ⏱️ {p['dauer']} Min | 🗣️ {p['sprache']}"
+                            if p.get('sprecher'):
+                                metadata += f"\n**Sprecher:** {p['sprecher']}"
+                            if p.get('rollen'):
+                                metadata += f" | **Rollen:** {p['rollen']}"
+                            gr.Markdown(metadata)
                         with gr.Column(scale=1):
                             with gr.Row(equal_height=True):
                                 btn_play_home = gr.Button("▶ Play", variant="primary", size="sm", scale=1, elem_classes="btn-play podcast-btn")
@@ -665,6 +672,8 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
                 dropdown_sprache,
                 dropdown_speaker1,
                 dropdown_speaker2,
+                dropdown_role1,  # NEU
+                dropdown_role2,  # NEU
                 current_user_state],
         outputs=pages + [audio_player, podcast_list_state],
     )

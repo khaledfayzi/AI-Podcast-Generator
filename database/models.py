@@ -126,6 +126,10 @@ class Konvertierungsauftrag(Base):
     # NEU: Der Auftrag zeigt auf die Stimmen, nicht umgekehrt!
     hauptstimmeId = Column(Integer, ForeignKey('PodcastStimme.stimmeId'), nullable=True)
     zweitstimmeId = Column(Integer, ForeignKey('PodcastStimme.stimmeId'), nullable=True)
+    
+    # NEU: Rollen speichern
+    hauptstimmeRolle = Column(String(100), nullable=True)
+    zweitstimmeRolle = Column(String(100), nullable=True)
 
     gewuenschteDauer = Column(Integer, nullable=False)
     status = Column(Enum(AuftragsStatus), nullable=False)

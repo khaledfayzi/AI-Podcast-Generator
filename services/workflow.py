@@ -129,7 +129,7 @@ class PodcastWorkflow:
     # 3) Metadaten speichern
     # --------------------------------------------------
     def _save_metadata(self, session, user_id, llm_id, tts_id, user_prompt, script, thema, dauer, sprache,
-                       primary_voice, secondary_voice, audio_path):
+                       primary_voice, secondary_voice, audio_path, primary_role=None, secondary_role=None):
         text_repo = TextRepo(session)
         job_repo = JobRepo(session)
         podcast_repo = PodcastRepo(session)
@@ -142,6 +142,8 @@ class PodcastWorkflow:
                 textId=text.textId, modellId=tts_id,
                 hauptstimmeId=primary_voice.stimmeId,
                 zweitstimmeId=secondary_voice.stimmeId if secondary_voice else None,
+                hauptstimmeRolle=primary_role,  # NEU
+                zweitstimmeRolle=secondary_role if secondary_voice else None,  # NEU
                 gewuenschteDauer=dauer, status=AuftragsStatus.IN_BEARBEITUNG
             ))
             podcast = podcast_repo.add(Podcast(
@@ -210,17 +212,41 @@ class PodcastWorkflow:
                 podcasts = podcast_repo.get_by_user_id(user_id)
                 podcasts.sort(key=lambda x: x.erstelldatum, reverse=True)
             else:
-                # Security: If no user logged in, show nothing (or public podcasts later)
                 return []
                 
             result = []
             for p in podcasts:
+                job = p.konvertierungsauftrag
+                
+                # Build speaker and role strings
+                speakers = []
+                roles = []
+                
+                if job.hauptstimme:
+                    speakers.append(job.hauptstimme.name)
+                    # NEU: Nutze die gespeicherte Rolle
+                    roles.append(job.hauptstimmeRolle or "Sprecher")
+                    
+                if job.zweitstimme:
+                    speakers.append(job.zweitstimme.name)
+                    # NEU: Nutze die gespeicherte Rolle
+                    roles.append(job.zweitstimmeRolle or "Sprecher")
+                
+                text = job.textbeitrag
+                sprache = text.sprache if text else "Deutsch"
+                
+                speaker_str = " & ".join(speakers) if speakers else "Unbekannt"
+                roles_str = ", ".join(roles) if roles else ""
+                
                 result.append({
-                    "id": p.podcastId,  # Add podcast ID for deletion
+                    "id": p.podcastId,
                     "titel": p.titel,
                     "dauer": p.realdauer,
                     "datum": str(p.erstelldatum),
-                    "path": p.dateipfadAudio
+                    "path": p.dateipfadAudio,
+                    "sprecher": speaker_str,
+                    "rollen": roles_str,
+                    "sprache": sprache
                 })
             return result
         finally:
@@ -251,7 +277,7 @@ class PodcastWorkflow:
     # --------------------------------------------------
     # PUBLIC API (Legacy / Full Pipeline)
     # --------------------------------------------------
-    def generate_audio_step(self, script_text, thema, dauer, sprache, hauptstimme, zweitstimme, user_id=1):
+    def generate_audio_step(self, script_text, thema, dauer, sprache, hauptstimme, zweitstimme, user_id=1, role1=None, role2=None):
         llm_id, tts_id = 1, 1
         session = get_db()
         try:
@@ -261,11 +287,10 @@ class PodcastWorkflow:
             if zweitstimme and zweitstimme != "Keine":
                 db_s = voice_repo.get_voices_by_names([zweitstimme])[0]
 
-            # KORREKTUR: Hier wurde 'sprache' hinzugefügt (4 Argumente)
             audio_path = self._generate_audio(script_text, sprache, db_p, db_s)
 
             self._save_metadata(session, user_id, llm_id, tts_id, "", script_text, thema, dauer, sprache, db_p, db_s,
-                                audio_path)
+                                audio_path, role1, role2)  # NEU: Rollen übergeben
             return audio_path
         finally:
             session.close()

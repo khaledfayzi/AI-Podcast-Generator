@@ -93,7 +93,9 @@ def generate_audio(
     sprache: str,
     speaker1: str,
     speaker2: Optional[str],
-    user_id: int = 1
+    user_id: int = 1,
+    role1: Optional[str] = None,
+    role2: Optional[str] = None
 ) -> str:
     """
     Generates audio from a script.
@@ -115,6 +117,7 @@ def generate_audio(
     # Normalize speaker2
     if not speaker2 or speaker2 == "Keine" or speaker2 == speaker1:
         speaker2 = None
+        role2 = None
 
     return workflow.generate_audio_step(
         script_text=script_text,
@@ -123,7 +126,9 @@ def generate_audio(
         sprache=sprache,
         hauptstimme=speaker1,
         zweitstimme=speaker2,
-        user_id=user_id
+        user_id=user_id,
+        role1=role1,  # NEU
+        role2=role2   # NEU
     )
 
 
