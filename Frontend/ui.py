@@ -1,4 +1,3 @@
-# gradio 5.49.1
 # NOTE: Benutzeroberfläche (Gradio Frontend)
 # Hier wird das Layout und der ganze Klick-Kram definiert.
 
@@ -317,11 +316,11 @@ input, textarea {
     background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
     color: white !important;
     font-weight: 600 !important;
-    margin-top: 10px !important;
 }
 
 .btn-delete:hover {
-    box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4) !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
 }
 
 /* Download button styling */
@@ -333,7 +332,21 @@ input, textarea {
 }
 
 .btn-download:hover {
-    box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4) !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+}
+
+/* Share button styling */
+.btn-share {
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+    color: white !important;
+    font-weight: 600 !important;
+}
+
+.btn-share:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
 }
 
 /* Podcast card container - only target the main container */
@@ -541,9 +554,9 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
 
                     # Action Buttons Column
                     with gr.Column(scale=1):
+                        audio_full_path = get_absolute_audio_path(p["path"])
                         with gr.Row(equal_height=True):
                             btn_play_home = gr.Button("▶ Play", variant="primary", size="sm", scale=1, elem_classes="btn-play podcast-btn")
-                            audio_full_path = get_absolute_audio_path(p["path"])
                             
                             btn_download_home = gr.DownloadButton(
                                 "⤓ Download", 
@@ -552,9 +565,9 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
                                 scale=1,
                                 elem_classes="btn-download podcast-btn"
                             )
-                        
-                        btn_delete_home = gr.Button("🗑️ Löschen", variant="stop", size="sm", elem_classes="btn-delete podcast-btn")
-                        btn_share_home = gr.Button("📤 Teilen", size="sm", elem_classes="btn-share podcast-btn")
+                            
+                            btn_delete_home = gr.Button("🗑️ Löschen", variant="stop", size="sm", scale=1, elem_classes="btn-delete podcast-btn")
+                            btn_share_home = gr.Button("📤 Teilen", size="sm", scale=1, elem_classes="btn-share podcast-btn")
                         
                         # --- Card Events ---
                         btn_play_home.click(
