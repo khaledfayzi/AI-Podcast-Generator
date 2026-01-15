@@ -6,6 +6,7 @@ import gradio as gr
 from gradio.themes import Ocean
 import sys
 import os
+from datetime import datetime
 
 # Fix damit die Imports aus team04 klappen
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -36,6 +37,15 @@ ROLE_OPTIONS = [
     "Co-Host",
     "Interviewpartner",
 ]
+
+
+def format_podcast_date(date_string: str) -> str:
+    """Formats a podcast date string from YYYY-MM-DD to DD.MM.YYYY."""
+    try:
+        date_obj = datetime.strptime(date_string, '%Y-%m-%d')
+        return date_obj.strftime('%d.%m.%Y')
+    except (ValueError, TypeError):
+        return date_string
 
 
 # --- Navigation Helper ---
@@ -167,6 +177,19 @@ def handle_login_click(current_user):
             gr.update(visible=False),
             gr.update(visible=False)
         )
+
+
+def refresh_podcasts_for_user(user_data):
+    """Refreshes podcast list for the current user."""
+    user_id = user_data["id"] if user_data else None
+    return get_podcasts_for_user(user_id=user_id)
+
+
+def navigate_home_and_refresh_podcasts(user_data):
+    """Navigates to home page and refreshes podcast list."""
+    user_id = user_data["id"] if user_data else None
+    podcast_list = get_podcasts_for_user(user_id=user_id)
+    return navigate("home") + (podcast_list,)
 
 
 # --- Helper Functions ---
@@ -337,6 +360,13 @@ input, textarea {
 button {
     border-radius: 10px !important;
 }
+
+/* Hides Gradio footer */
+.gradio-footer,
+footer,
+.footer {
+    display: none !important;
+}
 """
 
 
@@ -458,50 +488,66 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
         gr.Markdown("## Deine Podcasts")
 
 
-        # Dynamic Render for Home Page
+        # Render Single Card
+        def create_podcast_card(p, user_data):
+            """Renders a single podcast card with layout and events."""
+            with gr.Group(elem_classes="podcast-card"):
+                with gr.Row(variant="panel"):
+                    # Meta Data Column
+                    with gr.Column(scale=4):
+                        gr.Markdown(f"### 🎙️ {p['titel']}")
+                        
+                        formatted_date = format_podcast_date(p['datum'])
+                        metadata_lines = [
+                            f"📅 {formatted_date} · ⏱️ {p['dauer']} Min · 🗣️ {p['sprache']}"
+                        ]
+                        
+                        if p.get('sprecher'):
+                            metadata_lines.append(f"**Sprecher:** {p['sprecher']}")
+                        if p.get('rollen'):
+                            metadata_lines.append(f"**Rollen:** {p['rollen']}")
+                        
+                        gr.Markdown("\n\n".join(metadata_lines))
+
+                    # Action Buttons Column
+                    with gr.Column(scale=1):
+                        with gr.Row(equal_height=True):
+                            btn_play_home = gr.Button("▶ Play", variant="primary", size="sm", scale=1, elem_classes="btn-play podcast-btn")
+                            audio_full_path = get_absolute_audio_path(p["path"])
+                            
+                            btn_download_home = gr.DownloadButton(
+                                "⤓ Download", 
+                                value=audio_full_path,
+                                size="sm", 
+                                scale=1,
+                                elem_classes="btn-download podcast-btn"
+                            )
+                        
+                        btn_delete_home = gr.Button("🗑️ Löschen", variant="stop", size="sm", elem_classes="btn-delete podcast-btn")
+                        
+                        # --- Card Events ---
+                        btn_play_home.click(
+                            fn=on_play_click,
+                            inputs=[gr.State(p["path"])],
+                            outputs=pages + [audio_player],
+                        )
+                        
+                        podcast_id = p.get("id")
+                        btn_delete_home.click(
+                            fn=lambda pid=podcast_id, ud=user_data: delete_podcast_handler(pid, ud),
+                            inputs=[],
+                            outputs=[podcast_list_state]
+                        )
+
+        # --- Main List Renderer ---
         @gr.render(inputs=[podcast_list_state, current_user_state])
         def render_home_podcasts_list(podcasts, user_data):
             if not podcasts:
                 gr.Markdown("<i>Noch keine Podcasts vorhanden. Erstelle deinen ersten Podcast!</i>")
                 return
 
-            for idx, p in enumerate(podcasts):
-                with gr.Group(elem_classes="podcast-card"):
-                    with gr.Row(variant="panel"):
-                        with gr.Column(scale=4):
-                            gr.Markdown(f"### 🎙️ {p['titel']}")
-                            # Updated metadata display
-                            metadata = f"📅 {p['datum']} | ⏱️ {p['dauer']} Min | 🗣️ {p['sprache']}"
-                            if p.get('sprecher'):
-                                metadata += f"\n**Sprecher:** {p['sprecher']}"
-                            if p.get('rollen'):
-                                metadata += f" | **Rollen:** {p['rollen']}"
-                            gr.Markdown(metadata)
-                        with gr.Column(scale=1):
-                            with gr.Row(equal_height=True):
-                                btn_play_home = gr.Button("▶ Play", variant="primary", size="sm", scale=1, elem_classes="btn-play podcast-btn")
-                                audio_full_path = get_absolute_audio_path(p["path"])
-                                btn_download_home = gr.DownloadButton(
-                                    "⤓ Download", 
-                                    value=audio_full_path,
-                                    size="sm", 
-                                    scale=1,
-                                    elem_classes="btn-download podcast-btn"
-                                )
-                            btn_delete_home = gr.Button("🗑️ Löschen", variant="stop", size="sm", elem_classes="btn-delete podcast-btn")
-                            
-                            btn_play_home.click(
-                                fn=on_play_click,
-                                inputs=[gr.State(p["path"])],
-                                outputs=pages + [audio_player],
-                            )
-                            
-                            podcast_id = p.get("id")
-                            btn_delete_home.click(
-                                fn=lambda pid=podcast_id, ud=user_data: delete_podcast_handler(pid, ud),
-                                inputs=[],
-                                outputs=[podcast_list_state]
-                            )
+            for p in podcasts:
+                create_podcast_card(p, user_data)
 
     # --- Skript Bearbeiten ---
     with gr.Column(visible=False) as skript_bearbeiten:
@@ -627,7 +673,7 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
         inputs=[login_email_input, login_code_input],
         outputs=[login_status_msg, current_user_state, btn_goto_login] + pages,
     ).then(
-        fn=lambda user_data: get_podcasts_for_user(user_id=user_data["id"] if user_data else None),
+        fn=refresh_podcasts_for_user,
         inputs=[current_user_state],
         outputs=[podcast_list_state]
     )
@@ -686,13 +732,13 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
     )
 
     btn_zuruck_audio.click(
-        fn=lambda user_data: navigate("home") + (get_podcasts_for_user(user_id=user_data["id"] if user_data else None),),
+        fn=navigate_home_and_refresh_podcasts,
         inputs=[current_user_state],
         outputs=pages + [podcast_list_state]
     )
 
     demo.load(
-        fn=lambda user_data: get_podcasts_for_user(user_id=user_data["id"] if user_data else None),
+        fn=refresh_podcasts_for_user,
         inputs=[current_user_state],
         outputs=[podcast_list_state]
     )
