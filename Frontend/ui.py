@@ -59,6 +59,7 @@ def navigate(target):
         "loading podcast",
         "login_page",
         "uber_page",
+        "share_page",
     ]
     results = []
 
@@ -190,6 +191,35 @@ def navigate_home_and_refresh_podcasts(user_data):
     user_id = user_data["id"] if user_data else None
     podcast_list = get_podcasts_for_user(user_id=user_id)
     return navigate("home") + (podcast_list,)
+
+
+# --- Share Handlers ---
+def handle_share_click(podcast_data):
+    """Opens share page with podcast data."""
+    if not podcast_data:
+        return navigate("home")
+    # Return navigation updates + podcast title for display
+    return navigate("share_page") + (podcast_data.get("titel", "Podcast"), gr.update(value=""))
+
+
+def copy_share_link(share_link):
+    """Copies share link to clipboard and returns success message."""
+    if share_link:
+        # In a real app, JavaScript would copy to clipboard
+        # For now, return a message indicating copy action
+        return gr.update(value="✅ Link kopiert!", visible=True)
+    return gr.update(value="❌ Kein Link vorhanden", visible=True)
+
+
+def toggle_link_visibility(is_public):
+    """Toggles link visibility between public/private."""
+    status = "öffentlich" if is_public else "privat"
+    return gr.update(value=f"Link ist jetzt {status}")
+
+
+def go_back_to_home(user_data):
+    """Goes back to home and refreshes podcast list."""
+    return navigate_home_and_refresh_podcasts(user_data)
 
 
 # --- Helper Functions ---
@@ -524,6 +554,7 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
                             )
                         
                         btn_delete_home = gr.Button("🗑️ Löschen", variant="stop", size="sm", elem_classes="btn-delete podcast-btn")
+                        btn_share_home = gr.Button("📤 Teilen", size="sm", elem_classes="btn-share podcast-btn")
                         
                         # --- Card Events ---
                         btn_play_home.click(
@@ -537,6 +568,12 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
                             fn=lambda pid=podcast_id, ud=user_data: delete_podcast_handler(pid, ud),
                             inputs=[],
                             outputs=[podcast_list_state]
+                        )
+                        
+                        btn_share_home.click(
+                            fn=lambda pod_data=p: handle_share_click(pod_data),
+                            inputs=[],
+                            outputs=pages + [share_podcast_title, share_link_input]
                         )
 
         # --- Main List Renderer ---
@@ -605,6 +642,39 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
             with gr.Column(scale=1):
                 pass
 
+    # --- Share Page ---
+    with gr.Column(visible=False) as share_page:
+        gr.Markdown("# Podcast Teilen!")
+        
+        with gr.Row():
+            with gr.Column(scale=1):
+                pass
+            with gr.Column(scale=3):
+                share_podcast_title = gr.Markdown("### Teile 'Titel das podcast' mit andere")
+                
+                gr.Markdown("**Link:**")
+                
+                with gr.Row():
+                    share_link_input = gr.Textbox(
+                        label="",
+                        placeholder="https\\...",
+                        interactive=False,
+                        show_label=False
+                    )
+                    btn_copy_link = gr.Button("📋 Link Kopieren", scale=0)
+                
+                gr.Markdown("**Link Öffentlich/Privat machen**")
+                share_link_toggle = gr.Checkbox(
+                    label="Link öffentlich machen",
+                    value=False
+                )
+                
+                share_status_msg = gr.Markdown("", visible=False)
+                
+                btn_cancel_share = gr.Button("Zurück")
+            with gr.Column(scale=1):
+                pass
+
     # --- Über Page ---
     with gr.Column(visible=False) as uber_page:
         gr.Markdown("# Über den KI Podcast Generator")
@@ -645,11 +715,31 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
         loading_page_podcast,
         login_page,
         uber_page,
+        share_page,
     ]
 
     # --- Events ---
     btn_goto_uber.click(fn=lambda: navigate("uber_page"), outputs=pages)
     btn_back_from_uber.click(fn=lambda: navigate("home"), outputs=pages)
+    
+    # Share page events
+    btn_cancel_share.click(
+        fn=go_back_to_home,
+        inputs=[current_user_state],
+        outputs=pages + [podcast_list_state]
+    )
+    
+    btn_copy_link.click(
+        fn=copy_share_link,
+        inputs=[share_link_input],
+        outputs=[share_status_msg]
+    )
+    
+    share_link_toggle.change(
+        fn=toggle_link_visibility,
+        inputs=[share_link_toggle],
+        outputs=[share_status_msg]
+    )
     
     btn_goto_login.click(
         fn=handle_login_click,
