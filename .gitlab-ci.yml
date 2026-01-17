@@ -10,8 +10,7 @@ cache:
 
 stages:
   - test
-  - build
-
+  - deploy
 
 test_unit:
   stage: test
@@ -21,16 +20,24 @@ test_unit:
   script:
     - pip install -r requirements.txt
     - python tests/test_pipeline.py
+  only:
+    - main
+    - dev
 
-
-build_image:
-  stage: build
-  image: docker:latest
-  services:
-    - docker:dind
+deploy_to_vps:
+  stage: deploy
+  image: debian:latest
+  before_script:
+    - apt-get update && apt-get install -y openssh-client rsync
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | base64 -d | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $DEPLOY_SERVER_IP >> ~/.ssh/known_hosts
   script:
-    - echo "Starte Docker Build zur Verifikation..."
-    - docker build .
+    - echo "Deploying to $DEPLOY_SERVER_IP..."
+    - rsync -av --exclude='.git' --exclude='.venv' --exclude='__pycache__' --exclude='.env' --exclude='nginx.conf' ./ $DEPLOY_USER@$DEPLOY_SERVER_IP:/home/$DEPLOY_USER/podcast/app/
+    - ssh $DEPLOY_USER@$DEPLOY_SERVER_IP "cd /home/$DEPLOY_USER/podcast/app && docker compose up --build -d"
   only:
     - main
     - dev
