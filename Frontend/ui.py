@@ -76,11 +76,12 @@ def navigate(target):
 
 
 # --- UI Event Handlers (thin wrappers around backend) ---
-def on_play_click(audio_path):
+def on_play_click(audio_path, podcast_title):
     """Startet den Audio-Player mit dem richtigen File."""
     nav_updates = navigate("audio player")
     full_path = get_absolute_audio_path(audio_path)
-    return nav_updates + (gr.update(value=full_path, autoplay=True),)
+    title_md = f"<div style='text-align: center; margin-bottom: 20px;'><h2>🎙️ {podcast_title}</h2></div>"
+    return nav_updates + (gr.update(value=full_path, autoplay=True), gr.update(value=title_md))
 
 
 def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, role2, source_text):
@@ -111,8 +112,8 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
         speaker1=s1,
         speaker2=s2,
         user_id=user_id,
-        role1=r1,  # NEU
-        role2=r2   # NEU
+        role1=r1,
+        role2=r2
     )
     
     # Refresh podcast list
@@ -121,8 +122,13 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
     # Navigate to audio player
     nav_updates = navigate("audio player")
     full_path = get_absolute_audio_path(audio_path)
+    title_md = f"<div style='text-align: center; margin-bottom: 20px;'><h2>🎙️ {thema}</h2></div>"
 
-    return nav_updates + (gr.update(value=full_path, autoplay=True), updated_data)
+    return nav_updates + (
+        gr.update(value=full_path, autoplay=True), 
+        updated_data, 
+        gr.update(value=title_md)
+    )
 
 
 def delete_podcast_handler(podcast_id: int, user_data):
@@ -409,8 +415,11 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                         # --- Card Events ---
                         btn_play_home.click(
                             fn=on_play_click,
-                            inputs=[gr.State(p["path"])],
-                            outputs=pages + [audio_player],
+                            inputs=[
+                                gr.State(p["path"]), 
+                                gr.State(p["titel"])
+                            ],
+                            outputs=pages + [audio_player, player_title_display], # markdown output
                         )
                         
                         podcast_id = p.get("id")
@@ -457,7 +466,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
 
     # --- Player ---
     with gr.Column(visible=False) as audio_player_page:
-        gr.Markdown("## Audio Player")
+        player_title_display = gr.Markdown("## 🎙️ Unbekannter Podcast", elem_id="player_title_header")
         audio_player = gr.Audio(label="Podcast", type="filepath")
         btn_zuruck_audio = gr.Button("Zurück zur Startseite")
 
@@ -655,15 +664,15 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
     ).success(
         fn=run_audio_gen,
         inputs=[text,
-                textbox_thema,
+                textbox_thema, # title
                 dropdown_dauer,
                 dropdown_sprache,
                 dropdown_speaker1,
                 dropdown_speaker2,
-                dropdown_role1,  # NEU
-                dropdown_role2,  # NEU
+                dropdown_role1,
+                dropdown_role2,
                 current_user_state],
-        outputs=pages + [audio_player, podcast_list_state],
+        outputs=pages + [audio_player, podcast_list_state, player_title_display], # markdown output
     )
 
     btn_cancel_podcast.click(
