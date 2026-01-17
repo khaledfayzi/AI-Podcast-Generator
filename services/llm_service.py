@@ -98,9 +98,9 @@ class LLMService(ILLMService):
     # USER PROMPT
     def _user_prompt(self, thema: str | None, config: dict) -> str:
         try:
-            duration = int(config.get("dauer", 2))
+            duration = int(config.get("dauer", 5))
         except Exception:
-            duration = 2
+            duration = 5
 
         target_words = duration * 140
         style=(config.get("style")or "neutral").lower()
