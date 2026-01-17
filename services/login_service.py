@@ -1,88 +1,123 @@
-# Login Logik - Hier wird alles geregelt, was mit dem Anmelden zu tun hat
 import datetime
 import secrets
 import string
+from typing import Dict, Any
 
 from passlib.hash import argon2
-
 from database.database import get_db
 from repositories.user_repo import UserRepo
 from services.exceptions import AuthenticationError
 from services.email_service import EmailService
 
 
-def request_login_link(db_session, email):
+def request_login_link(db_session: Any, email: str) -> str:
     """
-    Hier wird der Code für den Login erstellt. 
-    Wir hashen das Teil direkt für die DB und schicken den Klartext per Mail raus.
+    Initiiert den Login-Prozess für einen Benutzer.
+
+    Erstellt bei Bedarf einen neuen Benutzer (Auto-Registrierung), generiert einen
+    8-stelligen alphanumerischen Token, hasht diesen mit Argon2 für die Datenbank
+    und versendet den Klartext-Token per E-Mail.
+
+    Args:
+        db_session: Die aktive Datenbank-Sitzung.
+        email: Die E-Mail-Adresse des Benutzers.
+
+    Returns:
+        str: Der generierte Klartext-Token (primär für Rückgabewerte in Tests).
+
+    Raises:
+        AuthenticationError: Wenn innerhalb der letzten 5 Minuten bereits
+                            ein Code angefordert wurde.
     """
     repo = UserRepo(db_session)
     user = repo.get_by_email(email)
 
-    # Wenn der User noch nicht da ist, legen wir ihn halt einfach an (Auto-Registrierung)
     if not user:
         user = repo.create_user(email)
 
-    # Wir machen jetzt einen 8-stelligen Code, weil sich das keiner merken kann sonst
+    # Generierung eines sicheren 8-stelligen Tokens
     alphabet = string.ascii_letters + string.digits
     plain_token = ''.join(secrets.choice(alphabet) for _ in range(8))
-    
-    # Sicher ist sicher: Argon2 Hash für die Datenbank
-    hash_token = argon2.hash(plain_token)
 
+    # Argon2 Hashing für die persistente Speicherung
+    hash_token = argon2.hash(plain_token)
     now = datetime.datetime.now()
 
-    # Man kann nur alle 5 Minuten einen Link sich schicken lassen
+    # Rate-Limiting: 5 Minuten Sperrfrist zwischen Token-Anfragen
     if user.token_timestamp and (now - user.token_timestamp < datetime.timedelta(minutes=5)):
         remaining = datetime.timedelta(minutes=5) - (now - user.token_timestamp)
         minutes, seconds = divmod(remaining.seconds, 60)
-        raise AuthenticationError(f"Zu schnell. Du kannst erst in {minutes}:{seconds:02d} Min wieder einen Code anfordern.")
+        raise AuthenticationError(
+            f"Anfrage zu schnell. Bitte warten Sie {minutes}:{seconds:02d} Minuten."
+        )
 
-
-    # Ab in die DB mit dem Hash und dem Zeitstempel
     repo.set_login_token(user, hash_token, now)
-    
-    # Den EmailService rufen wir hier auch direkt auf
+
     email_service = EmailService()
     email_service.send_login_token(email, plain_token)
-    
+
     return plain_token
 
 
-def verify_login_link(db_session, email, input_token):
+def verify_login_link(db_session: Any, email: str, input_token: str) -> Any:
     """
-    Checkt ob der Code, den der User eingegeben hat, auch wirklich passt.
-    Wir prüfen: Gibt's den User? Ist der Code noch frisch (15 Min)? Stimmt der Hash?
+    Validiert den vom Benutzer eingegebenen Token.
+
+    Prüft die Existenz des Benutzers, die zeitliche Gültigkeit des Tokens (max. 15 Min)
+    und verifiziert den kryptografischen Hash. Bei Erfolg wird der Token entwertet.
+
+    Args:
+        db_session: Die aktive Datenbank-Sitzung.
+        email: Die E-Mail-Adresse des Benutzers.
+        input_token: Der vom Benutzer eingegebene Klartext-Token.
+
+    Returns:
+        User: Das User-Objekt bei erfolgreicher Validierung.
+
+    Raises:
+        AuthenticationError: Wenn der User nicht existiert, kein Token aktiv ist,
+                            der Token abgelaufen ist oder der Hash nicht übereinstimmt.
     """
     repo = UserRepo(db_session)
     user = repo.get_by_email(email)
 
     if not user:
-        raise AuthenticationError("Den User gibt's gar nicht...")
+        raise AuthenticationError("Benutzerkonto nicht gefunden.")
 
-    # Hat er überhaupt nach einem Login gefragt?
     if not user.token or not user.token_timestamp:
-        raise AuthenticationError("Kein Login-Vorgang aktiv.")
+        raise AuthenticationError("Kein aktiver Login-Vorgang gefunden.")
 
-    # Zeit-Check: Nach 15 Minuten ist Schicht im Schacht
+    # Gültigkeitsprüfung: Token läuft nach 15 Minuten ab
     if datetime.datetime.now() - user.token_timestamp > datetime.timedelta(minutes=15):
-        repo.clear_login_token(user)  # Token wegwerfen, ist eh abgelaufen
-        raise AuthenticationError("Code leider abgelaufen, probier's nochmal.")
+        repo.clear_login_token(user)
+        raise AuthenticationError("Der Code ist abgelaufen. Bitte neuen Code anfordern.")
 
-    # Jetzt der eigentliche Vergleich vom Code mit dem Hash aus der DB
     if not argon2.verify(input_token, user.token):
-        raise AuthenticationError("Code falsch eingegeben, Tippfehler?")
+        raise AuthenticationError("Ungültiger Code.")
 
-    # Wenn alles passt: Token löschen (Sicherheit!) und User-Objekt zurückgeben
+    # One-Time-Use: Token nach erfolgreicher Verifizierung sofort löschen
     repo.clear_login_token(user)
     return user
 
-def process_login_request(email: str):
+
+def process_login_request(email: str) -> str:
     """
-    Wrapper that manages the DB session for a login request.
+    Verwaltet den Datenbank-Lebenszyklus für eine Login-Anfrage.
+
+    Inkludiert einen Test-Modus für eine spezifische E-Mail-Adresse,
+    um die E-Mail-Zustellung zu umgehen.
+
+    Args:
+        email: Die E-Mail-Adresse, für die der Login angefordert wird.
+
+    Returns:
+        str: Der Login-Token oder User-Informationen im Testfall.
+
+    Raises:
+        Exception: Reicht Datenbank- oder Authentifizierungsfehler nach Rollback weiter.
     """
-    # TEST MODE: Skip email verification
     TEST_EMAIL = "test@smail.th-koeln.de"
+
     if email.lower() == TEST_EMAIL:
         db = get_db()
         try:
@@ -90,17 +125,14 @@ def process_login_request(email: str):
             if not user:
                 user = UserRepo(db).create_user(email)
             db.commit()
-            return {
-                "id": user.userId,
-                "email": user.smailAdresse
-            }
+            return {"id": user.userId, "email": user.smailAdresse}
         finally:
             db.close()
-    
+
     db = get_db()
     try:
         result = request_login_link(db, email)
-        db.commit()  # Ensure changes (like the new token) are saved
+        db.commit()
         return result
     except Exception:
         db.rollback()
@@ -109,14 +141,24 @@ def process_login_request(email: str):
         db.close()
 
 
-def process_verify_login(email: str, code: str):
+def process_verify_login(email: str, code: str) -> Dict[str, Any]:
     """
-    Wrapper that manages the DB session for login verification.
+    Verwaltet den Datenbank-Lebenszyklus für die Verifizierung eines Tokens.
+
+    Args:
+        email: E-Mail-Adresse des Benutzers.
+        code: Der eingegebene Verifizierungscode.
+
+    Returns:
+        Dict[str, Any]: Ein Dictionary mit der User-ID und E-Mail.
+
+    Raises:
+        AuthenticationError: Bei fehlerhafter Verifizierung.
+        Exception: Bei Datenbankfehlern.
     """
-    # TEST MODE: Skip code verification
     TEST_EMAIL = "test@smail.th-koeln.de"
     TEST_CODE = "testtest"
-    
+
     if email.lower() == TEST_EMAIL and code == TEST_CODE:
         db = get_db()
         try:
@@ -124,13 +166,10 @@ def process_verify_login(email: str, code: str):
             if not user:
                 user = UserRepo(db).create_user(email)
             db.commit()
-            return {
-                "id": user.userId,
-                "email": user.smailAdresse
-            }
+            return {"id": user.userId, "email": user.smailAdresse}
         finally:
             db.close()
-    
+
     db = get_db()
     try:
         user = verify_login_link(db, email, code)
