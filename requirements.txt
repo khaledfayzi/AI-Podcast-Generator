@@ -35,3 +35,4 @@ dnspython
 numpy
 nltk
 pytest
+pytest-mock

@@ -20,6 +20,8 @@ class LLMService(ILLMService):
         - Sendet Anfrage an Gemini
         - Gibt reinen Podcast-Text zurück
     """
+
+    # Standard-Konfigurationen
     DEFAULT_MODEL = "models/gemini-2.5-flash-lite"
     DEFAULT_LANGUAGE = "Deutsch"
     DEFAULT_SPEAKER = "Max"
@@ -31,14 +33,18 @@ class LLMService(ILLMService):
 
 
 
-
-
-
     def __init__(self, model: str = DEFAULT_MODEL,use_dummy=False):
         """
-        Initialisiert den Service.
-        model: welches Gemini Modell benutzt wird
-        use_dummy: wenn True → KI wird NICHT gefragt, Dummy-Text wird benutzt
+        Initialisiert den LLM-Service.
+
+        Parameter:
+        - model: Modell-ID für Gemini (REST), z.B. "models/gemini-2.5-flash-lite"
+        - use_dummy: Wenn True, wird kein echter API-Call gemacht (für Tests/Offline)
+
+        Schritte:
+        1) API-Key aus der Umgebung lesen (.env oder OS env)
+        2) Wenn echter Betrieb: Key muss vorhanden sein, sonst Fehler
+        3) Endpoint-URL für die Gemini REST API zusammenbauen
         """
         
         self.api_key = os.getenv("GEMINI_API_KEY")
@@ -53,7 +59,17 @@ class LLMService(ILLMService):
 
    # Prompt-Bausteine
     def _roles_instruction(self, config: dict) -> str:
-        """Erzeugt Rollen-Regeln für 1 oder 2 Sprecher."""
+        """
+        Baut Zusatz-Regeln für Rollen/Sprecher auf Basis der Config.
+
+        Erwartete Config-Keys:
+        - hauptstimme: Name Sprecher 1 (default: DEFAULT_SPEAKER)
+        - zweitstimme: Name Sprecher 2 (optional)
+        - roles: dict, z.B. {"Max": "Moderator", "Sara": "Expertin"}
+
+        Rückgabe:
+        - String mit Zeilen, die Rollen beschreiben (oder leerer String).
+        """
 
         s1 = config.get("hauptstimme", self.DEFAULT_SPEAKER)
         s2 = config.get("zweitstimme")
@@ -74,8 +90,15 @@ class LLMService(ILLMService):
 
 
     def _system_prompt(self, config: dict) -> str:
-        """System-Prompt mit Regeln für Sprache, Sprecher und Formatierung."""
+        """
+        System-Prompt: Regeln für Stil/Format/Sprach-Ausgabe (TTS) und Sprecher.
 
+        Parameter:
+        - config: enthält u.a. language, hauptstimme, zweitstimme, roles
+
+        Rückgabe:
+        - String mit verbindlichen Regeln (Format, Sprecherlabels, TTS-Markierungen etc.)
+        """
         language = config.get("language",self.DEFAULT_LANGUAGE)
         s1 = config.get("hauptstimme", self.DEFAULT_SPEAKER)
         s2 = config.get("zweitstimme")
@@ -118,7 +141,19 @@ class LLMService(ILLMService):
     
     # USER PROMPT
     def _user_prompt(self, thema: str | None, config: dict) -> str:
-        """User-Prompt: mit Quelle oder ohne Quelle."""
+        """
+        User-Prompt: enthält Thema, Ziel-Länge und optional die Quelle.
+
+        Parameter:
+        - thema: Thema/Fokus (kann None sein, wenn Quelle gegeben ist)
+        - config:
+            - dauer: gewünschte Länge in Minuten (default 5)
+            - source_text: optionaler Quelltext (z.B. Artikel)
+            - source_max_chars: max. Zeichen aus Quelle übernehmen (default DEFAULT_MAX_SOURCE_CHARS)
+
+        Rückgabe:
+        - Prompt-String für das Modell (mit oder ohne QUELLE-Block)
+        """
 
         try:
             duration = int(config.get("dauer", 5))
@@ -158,51 +193,75 @@ class LLMService(ILLMService):
 
     # Anfrage an Google Gemini
     def _ask_gemini(self, prompt: str) -> str:
-        """Sendet die Anfrage an Gemini und gibt den generierten Text zurück."""
-        
+        """
+        Führt den REST-Call zu Gemini aus und gibt den generierten Text zurück.
 
+        Ablauf:
+        1) Request-Body bauen (Gemini erwartet "contents" → role/user → parts/text)
+        2) HTTP POST an /generateContent
+        3) Fehlerfälle behandeln:
+           - Netzwerk/Timeout (requests.RequestException)
+           - Rate-Limit/Server-Fehler (RETRY_STATUS_CODES)
+           - andere HTTP Fehler
+           - JSON/Antwortformat unerwartet
+        4) Erfolg: Text aus candidates[0].content.parts[0].text zurückgeben
+
+        Hinweis:
+        - timeout=12 bestimmt nur, wie lange wir maximal auf die Serverantwort warten.
+        - max_attempts=1 bedeutet hier: kein Retry (bewusst für schnellere UI).
+        """
         body = {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "contents": [{
+                "role": "user", "parts": [{"text": prompt}]}
+                ]
+            
+    }
              
-        }
+        max_attempts = 2  
+        last_error = None
 
-        for attempt in range(3):
-
-            # Netzwerkfehler abfangen
+        for attempt in range(max_attempts):
             try:
-                response = requests.post(self.url, json=body, timeout=10)
+                response = requests.post(self.url, json=body, timeout=12)
             except requests.RequestException as e:
-                if attempt < 2:
-                    time.sleep(attempt + 1)   #kurz warten und nochmal versuchen
+                last_error = e
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
                     continue
                 raise LLMServiceError(f"Gemini ist nicht erreichbar (Internet/Server-Problem): {e}")
-            #zu viele Anfragen, bitte warten
-            if response.status_code in self.RETRY_STATUS_CODES and attempt < 2:
-                time.sleep(attempt + 1)  #rate limit --> Warten
-                continue
 
-            # Gemini mit einem fehler antwortet(falscher Key, Serverfehler, usw.)
+            if response.status_code in self.RETRY_STATUS_CODES:
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+                    continue
+                raise LLMServiceError(
+                    f"Gemini API-Fehler nach Retry: HTTP {response.status_code} - {response.text}"
+                )
+
             if response.status_code != 200:
                 raise LLMServiceError(f"Gemini API-Fehler: HTTP {response.status_code} - {response.text}")
 
-            # Parsing-Fehler abfangen
             try:
-                #lesen den Text aus der KI-Antwort
                 data = response.json()
                 return data["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception as e:
+                raise LLMServiceError(f"Gemini-Antwort konnte nicht gelesen werden: {e}")
             
-            except Exception:
-                raise LLMServiceError("Gemini-Antwort konnte nicht gelesen werden.")
+        raise LLMServiceError("Gemini-Aufruf ist unerwartet beendet.")
     
 
     # Dummy
     def _dummy_output(self,thema:str,config:dict):          
             """
-                 Gibt einen einfachen Dummy-Text zurück.
-                Wird verwendet, wenn kein echtes LLM aufgerufen wird (z.B. im Dummy-Modus).
-            """
+            Gibt einen Dummy-Text zurück.
 
-            
+            Zweck:
+            - Lokales Testen ohne echte API-Aufrufe (z.B. wenn GEMINI_API_KEY fehlt)
+            - Schnelle UI-Entwicklung ohne Latenz
+
+            Rückgabe:
+            - Kurzer Dummy-String, der zeigt, dass der Flow funktioniert.
+            """
             return (
                     f"{thema}: Das ist ein Dummy-Testtext ohne zweiten Sprecher.\n"
                     f"{config}:Das ist eine Dummy Test"
@@ -211,14 +270,21 @@ class LLMService(ILLMService):
     # PUBLIC METHOD
     def generate_script(self,thema: str,config: dict) -> str:
         """
-        Öffentliche Methode zur Generierung eines Podcast-Skripts.
-        1. Optionaler Dummy-Modus
-        2. Prompt bauen
-        3. Gemini anfragen
-        4. Bei Fehlern Dummy-Fallback
+        Öffentliche API des Services: erzeugt ein Podcast-Skript.
+
+        Ablauf:
+        1) Dummy-Modus? → sofort Dummy zurück
+        2) System- und User-Prompt zusammenbauen
+        3) Gemini aufrufen
+        4) Bei Fehlern: Dummy-Fallback (damit UI nicht komplett kaputt ist)
+
+        Parameter:
+        - thema: Thema des Podcasts
+        - config: Konfiguration (dauer, source_text, Sprecher etc.)
+
+        Rückgabe:
+        - Generierter Skript-Text (String)
         """
-        
-        # Dummy-Modus (für lokale Tests)
         if self.use_dummy:
             return self._dummy_output(thema,config)
 
@@ -231,5 +297,7 @@ class LLMService(ILLMService):
         try:
             return self._ask_gemini(prompt)
         except LLMServiceError as e:
+            # Fallback: lieber Dummy als kompletter Crash in der UI
             print("LLM error:", e)
             return self._dummy_output(thema,config)
+        
