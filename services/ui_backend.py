@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 # Singleton workflow instance
 _workflow: Optional[PodcastWorkflow] = None
 
+DURATION_MAP = {
+    "Kurz(~5min)": 5,
+    "Mittel(~15min)": 15,
+    "Lang(~30min)": 30
+}
+
+DURATION_MAP ={
+    "Kurz(~5min)": 5,
+    "Mittel(~15min)": 15,
+    "Lang(~30min)": 30
+}
 
 def get_workflow() -> PodcastWorkflow:
     """Returns a singleton instance of PodcastWorkflow."""
@@ -73,10 +84,12 @@ def generate_script(
     if speaker2 and role2 and role2 != "Keine":
         roles[speaker2] = role2
 
+    duration_int = DURATION_MAP.get(dauer, 15)
+
     return workflow._generate_script(
         thema=thema,
         sprache=sprache,
-        dauer=int(dauer),
+        dauer=duration_int,
         speakers=speakers,
         roles=roles,
         hauptstimme=speaker1,
@@ -119,10 +132,12 @@ def generate_audio(
         speaker2 = None
         role2 = None
 
+    duration_int = DURATION_MAP.get(dauer, 15)
+
     return workflow.generate_audio_step(
         script_text=script_text,
         thema=thema,
-        dauer=int(dauer),
+        dauer=duration_int,
         sprache=sprache,
         hauptstimme=speaker1,
         zweitstimme=speaker2,
