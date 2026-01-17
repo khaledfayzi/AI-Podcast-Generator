@@ -1,6 +1,3 @@
-# NOTE: Benutzeroberfläche (Gradio Frontend)
-# Hier wird das Layout und der ganze Klick-Kram definiert.
-
 import gradio as gr
 from gradio.themes import Ocean
 import sys
@@ -26,6 +23,8 @@ from team04.services.ui_backend import (
     verify_login_code,
     get_user_display_name,
     process_source_input,
+    generate_audio_only,
+    save_generated_podcast
 )
 
 # Get available voices on startup
@@ -105,28 +104,30 @@ def on_play_click(audio_path, podcast_title):
     full_path = get_absolute_audio_path(audio_path)
     title_md = f"<div style='text-align: center; margin-bottom: 20px;'><h2>🎙️ {podcast_title}</h2></div>"
     return nav_updates + (gr.update(value=full_path, autoplay=True), gr.update(value=title_md))
-
-
+            
 def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, role2, source_text, source_url, file_upload):
     """
-    Prüft, ob mindestens ein Thema ODER ein Quelltext ODER eine URL vorhanden ist.
-    Falls nicht, bleibt der User auf der Home-Seite.
+    Generates a podcast script from validated input.
+    Assumes validation has already been done by validate_and_show_loading.
     """
     has_thema = thema and thema.strip()
-    has_url = source_url and source_url.strip()
+    has_source_url = source_url and source_url.strip()
     has_file = file_upload is not None
 
-    if not (has_thema  or has_url or has_file):
-        gr.Warning("Bitte gib mindestens ein Thema an, lade eine Datei hoch oder füge eine URL ein!")
+    if not (has_thema or has_source_url or has_file):
+        # Silent return: validation error is already shown by validate_and_show_loading
         return ("",) + navigate("home")
 
-
-    if  has_url or has_file:
+    has_url = source_url and source_url.strip()
+    has_file = file_upload is not None
+    
+    if has_url or has_file:
         try:
             gr.Info("Quelle wird automatisch verarbeitet...")
             source_text = process_source_input(file_upload, source_url)
         except Exception as e:
             gr.Warning(f"Fehler beim Verarbeiten der Quelle: {str(e)}")
+            has_thema = thema and thema.strip()
             if not has_thema:
                 return ("",) + navigate("home")
 
@@ -147,36 +148,71 @@ def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, ro
         return ("",) + navigate("home")
 
 
+def validate_and_show_loading(thema, source_url, file_upload):
+    """Validates input before showing loading page. Returns navigation updates or warning."""
+    has_thema = thema and thema.strip()
+    has_url = source_url and source_url.strip()
+    has_file = file_upload is not None
+
+    if not (has_thema or has_url or has_file):
+        # The chain continues, but generate_script_wrapper will catch the empty input and stop safely
+        gr.Warning("Bitte gib mindestens ein Thema an, lade eine Datei hoch oder füge eine URL ein!")
+        return navigate("home")
+    
+    # Input is valid, show loading page
+    return navigate("loading script")
+
+
 def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data):
     """Podcast aus dem Skript bauen, Player starten und Liste aktualisieren."""
     user_id = user_data["id"] if user_data else 1
     
-    # Generate audio
+    # GENERATE IN MEMORY
     try:
-        audio_path = generate_audio(
+        # returns audio_obj
+        audio_obj = generate_audio_only(
+            script_text=script_text,
+            sprache=sprache,
+            speaker1=s1,
+            speaker2=s2
+        )
+    except Exception as e:
+        gr.Error(f"Fehler bei Generierung des Podcasts! {str(e)}")
+        yield tuple([gr.update() for _ in range(12)])
+        return
+    
+    # YIELD CONTROL
+    # If canceled we stop here, the audio object is discarded
+    # Nothing is written to the Output folder
+    yield tuple([gr.update() for _ in range(12)])
+
+    # save to disk & db
+    try:
+        # Pass audio_obj to be saved now
+        audio_path = save_generated_podcast(
             script_text=script_text,
             thema=thema,
             dauer=dauer,
             sprache=sprache,
             speaker1=s1,
             speaker2=s2,
+            audio_obj=audio_obj,
             user_id=user_id,
             role1=r1,
             role2=r2
         )
     except Exception as e:
-        gr.Error(f"Fehler bei Generierung des Podcasts! {str(e)}")
-        return ("",) + navigate("home")
+        gr.Error(f"Fehler beim Speichern! {str(e)}")
+        yield tuple([gr.update() for _ in range(12)])
+        return
     
-    # Refresh podcast list
+    # refresh and navigate
     updated_data = get_podcasts_for_user(user_id=user_id)
-
-    # Navigate to audio player
     nav_updates = navigate("audio player")
     full_path = get_absolute_audio_path(audio_path)
     title_md = f"<div style='text-align: center; margin-bottom: 20px;'><h2>🎙️ {thema}</h2></div>"
 
-    return nav_updates + (
+    yield nav_updates + (
         gr.update(value=full_path, autoplay=True), 
         updated_data, 
         gr.update(value=title_md)
@@ -201,18 +237,33 @@ def handle_login_request(email):
         return gr.update(value=message, visible=True), gr.update(visible=True)
     return gr.update(value=message, visible=True), gr.update(visible=False)
 
-
+    
 def handle_code_verify(email, code):
     """Handles login code verification."""
     success, user_data, message = verify_login_code(email, code)
     
+    # Check how many pages exist in navigate() to prevent errors
+    # home, skript, audio, loading_s, loading_p, login, uber, nutzungs, share
+    num_pages = 9 
+
     if success:
         short_name = get_user_display_name(user_data)
         msg = gr.update(value=message, visible=True)
         btn_update = gr.update(value=f"Logout ({short_name})", variant="secondary")
-        return (msg, user_data, btn_update) + navigate("home")
+        
+        # SUCCESS: 
+        # 1. Update User/Msg/Btn
+        # 2. Navigate to Home
+        # 3. FORCE btn_quelle to be invisible (visible=False)
+        return (msg, user_data, btn_update) + navigate("home") + (gr.update(visible=False),)
+        
     else:
-        return (gr.update(value=message, visible=True), None, gr.update()) + tuple([gr.update()] * 8)
+        # FAILURE:
+        # Keep on current page (or update placeholders)
+        # 3 info updates + 9 page updates + 1 btn_quelle update
+        page_updates = tuple([gr.update() for _ in range(num_pages)])
+        
+        return (gr.update(value=message, visible=True), None, gr.update()) + page_updates + (gr.update(),)
 
 
 def handle_login_click(current_user):
@@ -221,12 +272,13 @@ def handle_login_click(current_user):
         return (
             None,                                    # current_user_state
             gr.update(value="🔑 Login", variant="secondary"),  # btn_goto_login
-            *navigate("home"),                       # 7 pages
+            *navigate("home"),                       # 9 pages
             [],                                      # podcast_list_state
             gr.update(value=""),                     # login_email_input
             gr.update(value=""),                     # login_code_input
             gr.update(visible=False),                # login_status_msg
-            gr.update(visible=False)                 # code_input_group
+            gr.update(visible=False),                # code_input_group
+            gr.update(visible=False)                 # btn_quelle - reset to invisible on logout
         )
     else:  # Show login page
         return (
@@ -237,7 +289,8 @@ def handle_login_click(current_user):
             gr.update(value=""),
             gr.update(value=""),
             gr.update(visible=False),
-            gr.update(visible=False)
+            gr.update(visible=False),
+            gr.update()                              # btn_quelle - no change
         )
 
 
@@ -416,16 +469,40 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                         elem_id="source_url_input"
                     )
 
-                btn_quelle = gr.Button("Quelle übernehmen")
+                btn_quelle = gr.Button("Quelle übernehmen", visible=False)
 
                 source_preview = gr.Textbox(
                     label="Quelle (Text, der ins Skript einfließt)",
                     lines=5,
                     interactive=True,
+                    visible=False,
+                )
+
+                def show_source_preview(file_path, url):
+                    """Process source and show preview if text exists."""
+                    text = process_source_input(file_path, url)
+                    return gr.update(value=text, visible=bool(text and text.strip()))
+
+                def toggle_quelle_button(file_obj, url_text):
+                    """Show button if either file is uploaded or URL is entered."""
+                    has_file = file_obj is not None
+                    has_url = url_text and url_text.strip()
+                    return gr.update(visible=has_file or has_url)
+
+                file_upload.change(
+                    fn=toggle_quelle_button,
+                    inputs=[file_upload, source_url],
+                    outputs=btn_quelle
+                )
+
+                source_url.change(
+                    fn=toggle_quelle_button,
+                    inputs=[file_upload, source_url],
+                    outputs=btn_quelle
                 )
 
                 btn_quelle.click(
-                    fn=process_source_input,
+                    fn=show_source_preview,
                     inputs=[file_upload, source_url],
                     outputs=source_preview,
                 )
@@ -729,7 +806,8 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
             login_email_input,
             login_code_input,
             login_status_msg,
-            code_input_group
+            code_input_group,
+            btn_quelle
         ],
     )
     
@@ -738,7 +816,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
     btn_verify_code.click(
         fn=handle_code_verify,
         inputs=[login_email_input, login_code_input],
-        outputs=[login_status_msg, current_user_state, btn_goto_login] + pages,
+        outputs=[login_status_msg, current_user_state, btn_goto_login] + pages + [btn_quelle],
     ).then(
         fn=refresh_podcasts_for_user,
         inputs=[current_user_state],
@@ -747,8 +825,8 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
 
     # Skript generieren + Cancel
     skript_task = btn_skript_generieren.click(
-        fn=lambda: navigate("loading script"),
-        inputs=None,
+        fn=validate_and_show_loading,
+        inputs=[textbox_thema, source_url, file_upload],
         outputs=pages,
     ).then(
         fn=generate_script_wrapper,

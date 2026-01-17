@@ -274,6 +274,89 @@ class PodcastWorkflow:
         finally:
             session.close()
 
+    def generate_audio_obj_step(self, script_text, sprache, hauptstimme, zweitstimme):
+        """Generates the audio object in MEMORY (does not save to disk)."""
+        session = get_db()
+        try:
+            voice_repo = VoiceRepo(session)
+            db_p = voice_repo.get_voices_by_names([hauptstimme])[0]
+            db_s = None
+            if zweitstimme and zweitstimme != "Keine":
+                db_s = voice_repo.get_voices_by_names([zweitstimme])[0]
+            
+            # Return the Pydub AudioSegment directly without exporting
+            return self.tts_service.generate_audio(
+                script_text=script_text,
+                sprache=sprache,
+                primary_voice=db_p,
+                secondary_voice=db_s
+            )
+        finally:
+            session.close()
+
+    def save_audio_file(self, audio_segment) -> str:
+        """Saves an audio segment to the Output folder"""
+        if not audio_segment:
+             raise TTSServiceError("Kein Audio zum Speichern vorhanden")
+        
+        try:
+            output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Output")
+            os.makedirs(output_dir, exist_ok=True)
+            filename = f"podcast_google_{uuid.uuid4()}.mp3"
+            filepath = os.path.join(output_dir, filename)
+            db_path = os.path.join("Output", filename)
+
+            audio_segment.export(filepath, format="mp3")
+            logger.info(f"Audio erfolgreich gespeichert: {filepath}")
+            return db_path
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern der Audiodatei: {e}")
+            raise TTSServiceError(f"IO Error beim Speichern: {e}")
+        
+    def save_podcast_db(self, user_id, script, thema, dauer, sprache, hauptstimme, zweitstimme, audio_path, role1, role2):
+        """
+        Saves podcast metadata to the database
+        Called by the UI backend after the file has been successfully generated and saved
+        """
+        llm_id, tts_id = 1, 1 # Fixed IDs for now
+        session = get_db()
+        try:
+            voice_repo = VoiceRepo(session)
+            
+            # Resolve Voice Names to DB Objects
+            # Primary voice is assumed to exist
+            db_p = voice_repo.get_voices_by_names([hauptstimme])[0]
+            
+            # Secondary voice is optional
+            db_s = None
+            if zweitstimme and zweitstimme != "Keine":
+                voices_s = voice_repo.get_voices_by_names([zweitstimme])
+                if voices_s:
+                    db_s = voices_s[0]
+
+            self._save_metadata(
+                session=session, 
+                user_id=user_id, 
+                llm_id=llm_id, 
+                tts_id=tts_id, 
+                user_prompt="", 
+                script=script, 
+                thema=thema, 
+                dauer=dauer, 
+                sprache=sprache, 
+                primary_voice=db_p, 
+                secondary_voice=db_s,
+                audio_path=audio_path, 
+                primary_role=role1, 
+                secondary_role=role2
+            )
+            
+        except Exception as e:
+            logger.error(f"Error saving podcast to DB: {e}")
+            raise e
+        finally:
+            session.close()
+
     # --------------------------------------------------
     # PUBLIC API (Legacy / Full Pipeline)
     # --------------------------------------------------

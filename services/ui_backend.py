@@ -94,6 +94,46 @@ def generate_script(
 
 
 # --- Audio Generation ---
+def generate_audio_only(script_text: str, sprache: str, speaker1: str, speaker2: Optional[str]):
+    """Wrapper to generate audio object"""
+    workflow = get_workflow()
+    if not speaker2 or speaker2 == "Keine" or speaker2 == speaker1:
+        speaker2 = None
+    
+    # Calls the new 'obj' step
+    return workflow.generate_audio_obj_step(script_text, sprache, speaker1, speaker2)
+
+
+def save_generated_podcast(script_text, thema, dauer, sprache, speaker1, speaker2, audio_obj, user_id, role1, role2):
+    """Wrapper to save file and metadata."""
+    workflow = get_workflow()
+    
+    # save file if not cancelled
+    audio_path = workflow.save_audio_file(audio_obj)
+
+    # save metadata
+    if not speaker2 or speaker2 == "Keine" or speaker2 == speaker1:
+        speaker2 = None
+        role2 = None
+    
+    duration_int = DURATION_MAP.get(dauer, 15)
+    
+    workflow.save_podcast_db(
+        user_id=user_id, 
+        script=script_text, 
+        thema=thema, 
+        dauer=duration_int, 
+        sprache=sprache, 
+        hauptstimme=speaker1, 
+        zweitstimme=speaker2, 
+        audio_path=audio_path,
+        role1=role1,
+        role2=role2
+    )
+    
+    # Return the new path so the UI can play it
+    return audio_path
+
 def generate_audio(
     script_text: str,
     thema: str,
