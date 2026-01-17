@@ -143,6 +143,7 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
         )
     except Exception as e:
         gr.Error(f"Fehler bei generierung des Podcats! {str(e)}")
+        return ("",) + navigate("home")
     
     # Refresh podcast list
     updated_data = get_podcasts_for_user(user_id=user_id)
@@ -188,7 +189,7 @@ def handle_code_verify(email, code):
         btn_update = gr.update(value=f"Logout ({short_name})", variant="secondary")
         return (msg, user_data, btn_update) + navigate("home")
     else:
-        return (gr.update(value=message, visible=True), None, gr.update()) + tuple([gr.update()] * 7)
+        return (gr.update(value=message, visible=True), None, gr.update()) + tuple([gr.update()] * 8)
 
 
 def handle_login_click(current_user):
@@ -673,6 +674,8 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
             dropdown_speaker2,
             dropdown_role2,
             source_preview,
+            source_url,
+            file_upload
         ],
         outputs=[text] + pages
     )
