@@ -22,11 +22,6 @@ DURATION_MAP = {
     "Lang(~30min)": 30
 }
 
-DURATION_MAP ={
-    "Kurz(~5min)": 5,
-    "Mittel(~15min)": 15,
-    "Lang(~30min)": 30
-}
 
 def get_workflow() -> PodcastWorkflow:
     """Returns a singleton instance of PodcastWorkflow."""
