@@ -1,10 +1,17 @@
-from Interfaces.IServices import ILLMService
-from .exceptions import LLMServiceError
-import requests
 import os
 import time
+
+import requests
 from dotenv import load_dotenv
+
+from Interfaces.IServices import ILLMService
+
+from .exceptions import LLMServiceError
+
 load_dotenv()
+
+
+
 
 class LLMService(ILLMService):
     """
@@ -13,39 +20,51 @@ class LLMService(ILLMService):
         - Sendet Anfrage an Gemini
         - Gibt reinen Podcast-Text zurück
     """
+    DEFAULT_MODEL = "models/gemini-2.5-flash-lite"
+    DEFAULT_LANGUAGE = "Deutsch"
+    DEFAULT_SPEAKER = "Max"
+    WORDS_PER_MIN = 140
+    DEFAULT_MAX_SOURCE_CHARS = 12000
 
-    def __init__(self, model: str = "models/gemini-2.5-flash",use_dummy=False):
+    # HTTP Fehlercodes bei denen erneut versucht werden soll
+    RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+
+
+
+
+    def __init__(self, model: str = DEFAULT_MODEL,use_dummy=False):
         """
         Initialisiert den Service.
-        model_name: welches gemini modell benutzt wird
+        model: welches Gemini Modell benutzt wird
         use_dummy: wenn True → KI wird NICHT gefragt, Dummy-Text wird benutzt
         """
+        
         self.api_key = os.getenv("GEMINI_API_KEY")
         if not use_dummy and not self.api_key:
             raise LLMServiceError("Umgebungsvariable GEMINI_API_KEY fehlt.")
-
+        
         self.model = model
         self.url = f"https://generativelanguage.googleapis.com/v1/{self.model}:generateContent?key={self.api_key}"
         self.use_dummy=use_dummy
 
-    #Hilffuntkion für der Regel
-    def _roles_instruction(self, config: dict) -> str:
-        s1 = config.get("hauptstimme", "Max")
-        s2 = config.get("zweitstimme")
-        #rolle holen 
-        roles = config.get("roles") or {}
 
+
+   # Prompt-Bausteine
+    def _roles_instruction(self, config: dict) -> str:
+        """Erzeugt Rollen-Regeln für 1 oder 2 Sprecher."""
+
+        s1 = config.get("hauptstimme", self.DEFAULT_SPEAKER)
+        s2 = config.get("zweitstimme")
+        roles = config.get("roles") or {}
         r1 = roles.get(s1)
         r2 = roles.get(s2) if s2 else None
-
         lines = []
-        #erste rolle
         if r1:
-            lines.append(f"- {s1} ist {r1}.")
-        #gibt es eine zweite person und hat er eine rolle    
+            lines.append(f"- {s1} ist {r1}.")   
         if s2 and r2:
             lines.append(f"- {s2} ist {r2}.")
-        #gibt es überhaupt eine zweite person rolle verteilen
         if s2:
             lines.append(f"- {s1} stellt Fragen und moderiert; {s2} erklärt und liefert Fakten/Beispiele.")
 
@@ -55,17 +74,19 @@ class LLMService(ILLMService):
 
 
     def _system_prompt(self, config: dict) -> str:
-        language = config.get("language", "Deutsch")
-        s1 = config.get("hauptstimme", "Max")
+        """System-Prompt mit Regeln für Sprache, Sprecher und Formatierung."""
+
+        language = config.get("language",self.DEFAULT_LANGUAGE)
+        s1 = config.get("hauptstimme", self.DEFAULT_SPEAKER)
         s2 = config.get("zweitstimme")
         roles_text = self._roles_instruction(config)
 
-        if language not in ("Deutsch", "English"):
-            language = "Deutsch"
+        if language not in (self.DEFAULT_LANGUAGE, "English"):
+            language = self.DEFAULT_LANGUAGE
 
         language_line = (
             "- Schreibe ausschließlich auf Deutsch.\n"
-            if language == "Deutsch"
+            if language == self.DEFAULT_LANGUAGE
             else "- Write exclusively in English.\n"
         )
 
@@ -97,22 +118,18 @@ class LLMService(ILLMService):
     
     # USER PROMPT
     def _user_prompt(self, thema: str | None, config: dict) -> str:
+        """User-Prompt: mit Quelle oder ohne Quelle."""
+
         try:
             duration = int(config.get("dauer", 5))
         except Exception:
             duration = 5
 
-        target_words = duration * 140
-        style=(config.get("style")or "neutral").lower()
-        style_line={
-            "neutral":"Ton: neutral, sachlich verständlich.",
-            "freudig":"Ton: freundlich motivierend, positiv.",
-            "gechillt":"Ton: locker , entspannt, umgangssprachlich.",
-            "komisch" :"Ton humorvoll, aber informative aber rezepektvoll.",
-        }.get(style,"Ton: neutral , sachlich , verständlich")
+        target_words = duration * self.WORDS_PER_MIN
+        
 
         source_text = (config.get("source_text") or "").strip()
-        max_chars = int(config.get("source_max_chars", 12000))
+        max_chars = int(config.get("source_max_chars", self.DEFAULT_MAX_SOURCE_CHARS))
         if source_text and len(source_text) > max_chars:
             source_text = source_text[:max_chars]
 
@@ -129,11 +146,10 @@ class LLMService(ILLMService):
                 f"{source_text}\n"
             )
 
-    # Fall 2: keine Quelle → Thema muss genutzt werden
+        # Fall 2: keine Quelle → Thema muss genutzt werden
         return (
             f"Thema: {thema}\n"
             f"Ziel-Länge: ca. {target_words} Wörter.\n"
-            f"{style_line}.\n"
             "Erstelle einen gesprochenen Podcast-Text zu diesem Thema.\n"
             "Der Text soll natürlich klingen und direkt gesprochen werden können.\n"
          )
@@ -142,36 +158,32 @@ class LLMService(ILLMService):
 
     # Anfrage an Google Gemini
     def _ask_gemini(self, prompt: str) -> str:
-        """
-        Sendet die Anfrage an Gemini und gibt den generierten Text zurück.
-        Behandelt auch Fehlerfälle und unterschiedliche Antwortformate.
-        """
+        """Sendet die Anfrage an Gemini und gibt den generierten Text zurück."""
+        
 
         body = {
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}]
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+             
         }
 
         for attempt in range(3):
 
-
             # Netzwerkfehler abfangen
             try:
-                response = requests.post(self.url, json=body, timeout=15)
+                response = requests.post(self.url, json=body, timeout=10)
             except requests.RequestException as e:
                 if attempt < 2:
                     time.sleep(attempt + 1)   #kurz warten und nochmal versuchen
                     continue
                 raise LLMServiceError(f"Gemini ist nicht erreichbar (Internet/Server-Problem): {e}")
             #zu viele Anfragen, bitte warten
-            if response.status_code==429 and attempt < 2:
+            if response.status_code in self.RETRY_STATUS_CODES and attempt < 2:
                 time.sleep(attempt + 1)  #rate limit --> Warten
                 continue
-
 
             # Gemini mit einem fehler antwortet(falscher Key, Serverfehler, usw.)
             if response.status_code != 200:
                 raise LLMServiceError(f"Gemini API-Fehler: HTTP {response.status_code} - {response.text}")
-
 
             # Parsing-Fehler abfangen
             try:
@@ -186,10 +198,8 @@ class LLMService(ILLMService):
     # Dummy
     def _dummy_output(self,thema:str,config:dict):          
             """
-            Gibt einen einfachen Dummy-Text zurück.
-            Wird verwendet, wenn kein echtes LLM aufgerufen wird (z.B. im Dummy-Modus).
-            Der Text simuliert die spätere Struktur eines Podcast-Skripts
-            mit einem oder zwei Sprechern.
+                 Gibt einen einfachen Dummy-Text zurück.
+                Wird verwendet, wenn kein echtes LLM aufgerufen wird (z.B. im Dummy-Modus).
             """
 
             
@@ -201,15 +211,12 @@ class LLMService(ILLMService):
     # PUBLIC METHOD
     def generate_script(self,thema: str,config: dict) -> str:
         """
-            Öffentliche Methode zur Generierung eines Podcast-Skripts.
-
-            Der Ablauf ist wie folgt:
-            1. Optionaler Dummy-Modus für lokale Tests ohne API-Zugriff.
-            2. Aufbau des Prompts aus System-Prompt 
-               und User-Prompt.
-            3. Anfrage an das Sprachmodell (Gemini).
-            4. Fallback auf Dummy-Text bei Fehlern.
-            """
+        Öffentliche Methode zur Generierung eines Podcast-Skripts.
+        1. Optionaler Dummy-Modus
+        2. Prompt bauen
+        3. Gemini anfragen
+        4. Bei Fehlern Dummy-Fallback
+        """
         
         # Dummy-Modus (für lokale Tests)
         if self.use_dummy:
