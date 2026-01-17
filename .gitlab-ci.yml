@@ -30,7 +30,9 @@ deploy_to_vps:
   before_script:
     - apt-get update && apt-get install -y openssh-client rsync
     - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | base64 -d | ssh-add -
+    - echo "$SSH_PRIVATE_KEY" | base64 -d > ~/.ssh/id_ed25519
+    - chmod 600 ~/.ssh/id_ed25519
+    - ssh-add ~/.ssh/id_ed25519
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - ssh-keyscan -H $DEPLOY_SERVER_IP >> ~/.ssh/known_hosts
