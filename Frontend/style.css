@@ -1,0 +1,186 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body,
+button,
+input,
+textarea,
+select {
+    font-family: 'Inter', sans-serif !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Dropdown styling */
+.dropdown,
+.select,
+select {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Gradio input fields */
+input,
+textarea {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Target Gradio's internal dropdown */
+[role="combobox"],
+[role="listbox"],
+[role="option"] {
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Fallback for all text elements */
+* {
+    font-family: 'Inter', sans-serif !important;
+}
+
+.header-btn {
+    width: fit-content !important;
+    min-width: 80px !important;
+    white-space: nowrap !important;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    border-radius: 12px !important;
+}
+
+/* Podcast card button styling */
+.podcast-btn {
+    border-radius: 10px !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.podcast-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Play button styling */
+.btn-play {
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    font-weight: 600 !important;
+}
+
+.btn-play:hover {
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+}
+
+/* Delete button styling */
+.btn-delete {
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+    color: white !important;
+    font-weight: 600 !important;
+}
+
+.btn-delete:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+}
+
+/* Download button styling */
+.btn-download {
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+    color: white !important;
+    font-weight: 600 !important;
+}
+
+.btn-download:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+}
+
+/* Share button styling */
+.btn-share {
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+    color: white !important;
+    font-weight: 600 !important;
+}
+
+.btn-share:hover {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+}
+
+/* Podcast card container - only target the main container */
+.podcast-card {
+    border-radius: 15px !important;
+    border: 1px solid #333333 !important;
+    background: #212c47 !important;
+    padding: 30px !important;
+    margin-bottom: 20px !important;
+    transition: all 0.3s ease !important;
+}
+
+.podcast-card:hover {
+    border-color: #667eea !important;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15) !important;
+}
+
+/* Remove borders and backgrounds from child elements */
+.podcast-card>div,
+.podcast-card .block,
+.podcast-card [data-testid="group"],
+.podcast-card [data-testid="row"],
+.podcast-card .row,
+.podcast-card .panel {
+    border: none !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* Target Gradio's panel variant specifically */
+.podcast-card .panel,
+.podcast-card [variant="panel"],
+.podcast-card .gr-panel {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* Force dark background for all Gradio groups */
+.gradio-group,
+[data-testid="group"],
+.group {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* Add gap between buttons in Row */
+.podcast-card .row {
+    gap: 12px !important;
+}
+
+/* General button styling */
+button {
+    border-radius: 10px !important;
+}
+
+/* Hides Gradio footer */
+.gradio-footer,
+footer,
+.footer {
+    display: none !important;
+}
+
+/* Remove scrollbar from the share link box */
+#share_link_output textarea,
+#share_link_output input {
+    overflow-y: hidden !important;
+    resize: none !important;
+}

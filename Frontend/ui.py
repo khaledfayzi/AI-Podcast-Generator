@@ -10,6 +10,10 @@ from datetime import datetime
 # Fix damit die Imports aus team04 klappen
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
+css_path = os.path.join(os.path.dirname(__file__), "style.css")
+with open(css_path, "r", encoding="utf-8") as f:
+    css_content = f.read()
+
 # Import backend service instead of direct workflow/service imports
 from team04.services.ui_backend import (
     get_available_voices,
@@ -243,177 +247,9 @@ def get_loader_html(message):
     """
 
 
-# CSS to force buttons to auto-expand and add rounded corners
-custom_css = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-body, button, input, textarea, select {
-    font-family: 'Inter', sans-serif !important;
-}
-
-h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', sans-serif !important;
-}
-
-/* Dropdown styling */
-.dropdown, .select, select {
-    font-family: 'Inter', sans-serif !important;
-}
-
-/* Gradio input fields */
-input, textarea {
-    font-family: 'Inter', sans-serif !important;
-}
-
-/* Target Gradio's internal dropdown */
-[role="combobox"], [role="listbox"], [role="option"] {
-    font-family: 'Inter', sans-serif !important;
-}
-
-/* Fallback for all text elements */
-* {
-    font-family: 'Inter', sans-serif !important;
-}
-
-.header-btn {
-    width: fit-content !important;
-    min-width: 80px !important;
-    white-space: nowrap !important;
-    flex: 0 0 auto !important;
-    display: inline-flex !important;
-    justify-content: center !important;
-    border-radius: 12px !important;
-}
-
-/* Podcast card button styling */
-.podcast-btn {
-    border-radius: 10px !important;
-    font-weight: 500 !important;
-    transition: all 0.3s ease !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-}
-
-.podcast-btn:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-}
-
-/* Play button styling */
-.btn-play {
-    border-radius: 10px !important;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    color: white !important;
-    font-weight: 600 !important;
-}
-
-.btn-play:hover {
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-}
-
-/* Delete button styling */
-.btn-delete {
-    border-radius: 10px !important;
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
-    color: white !important;
-    font-weight: 600 !important;
-}
-
-.btn-delete:hover {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-}
-
-/* Download button styling */
-.btn-download {
-    border-radius: 10px !important;
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
-    color: white !important;
-    font-weight: 600 !important;
-}
-
-.btn-download:hover {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-}
-
-/* Share button styling */
-.btn-share {
-    border-radius: 10px !important;
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
-    color: white !important;
-    font-weight: 600 !important;
-}
-
-.btn-share:hover {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-}
-
-/* Podcast card container - only target the main container */
-.podcast-card {
-    border-radius: 15px !important;
-    border: 1px solid #333333 !important;
-    background: #1a1a1a !important;
-    padding: 30px !important;
-    margin-bottom: 20px !important;
-    transition: all 0.3s ease !important;
-}
-
-.podcast-card:hover {
-    border-color: #667eea !important;
-    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15) !important;
-}
-
-/* Remove borders and backgrounds from child elements */
-.podcast-card > div,
-.podcast-card .block,
-.podcast-card [data-testid="group"],
-.podcast-card [data-testid="row"],
-.podcast-card .row,
-.podcast-card .panel {
-    border: none !important;
-    background: transparent !important;
-    background-color: transparent !important;
-}
-
-/* Target Gradio's panel variant specifically */
-.podcast-card .panel,
-.podcast-card [variant="panel"],
-.podcast-card .gr-panel {
-    background: transparent !important;
-    background-color: transparent !important;
-    border: none !important;
-}
-
-/* Force dark background for all Gradio groups */
-.gradio-group,
-[data-testid="group"],
-.group {
-    background: transparent !important;
-    background-color: transparent !important;
-    border: none !important;
-}
-
-/* Add gap between buttons in Row */
-.podcast-card .row {
-    gap: 12px !important;
-}
-
-/* General button styling */
-button {
-    border-radius: 10px !important;
-}
-
-/* Hides Gradio footer */
-.gradio-footer,
-footer,
-.footer {
-    display: none !important;
-}
-"""
 
 
-with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as demo:
+with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as demo:
     # --- Global State ---
     current_user_state = gr.State(None)
     audio_state = gr.State()
@@ -504,8 +340,9 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
                     source_url = gr.Textbox(
                         label="Quelle / URL (optional)",
                         placeholder="https://...",
-                        lines=1,
+                        max_lines=1,
                         scale=1,
+                        elem_id="source_url_input"
                     )
 
                 btn_quelle = gr.Button("Quelle übernehmen")
@@ -672,7 +509,9 @@ with gr.Blocks(css=custom_css, theme=gr.themes.Soft(primary_hue="indigo")) as de
                         label="",
                         placeholder="https\\...",
                         interactive=False,
-                        show_label=False
+                        show_label=False,
+                        max_lines=1,
+                        elem_id="share_link_output"
                     )
                     btn_copy_link = gr.Button("📋 Link Kopieren", scale=0)
                 
