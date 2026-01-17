@@ -84,19 +84,44 @@ def on_play_click(audio_path, podcast_title):
     return nav_updates + (gr.update(value=full_path, autoplay=True), gr.update(value=title_md))
 
 
-def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, role2, source_text):
-    """UI wrapper for script generation."""
-    script_text = generate_script(
-        thema=thema,
-        dauer=dauer,
-        sprache=sprache,
-        speaker1=speaker1,
-        role1=role1,
-        speaker2=speaker2,
-        role2=role2,
-        source_text=source_text,
-    )
-    return (script_text,) + navigate("skript bearbeiten")
+def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, role2, source_text, source_url, file_upload):
+    """
+    Prüft, ob mindestens ein Thema ODER ein Quelltext ODER eine URL vorhanden ist.
+    Falls nicht, bleibt der User auf der Home-Seite.
+    """
+    has_thema = thema and thema.strip()
+    has_url = source_url and source_url.strip()
+    has_file = file_upload is not None
+
+    if not (has_thema  or has_url or has_file):
+        gr.Warning("Bitte gib mindestens ein Thema an, lade eine Datei hoch oder füge eine URL ein!")
+        return ("",) + navigate("home")
+
+
+    if  has_url or has_file:
+        try:
+            gr.Info("Quelle wird automatisch verarbeitet...")
+            source_text = process_source_input(file_upload, source_url)
+        except Exception as e:
+            gr.Warning(f"Fehler beim Verarbeiten der Quelle: {str(e)}")
+            if not has_thema:
+                return ("",) + navigate("home")
+
+    try:
+        script_text = generate_script(
+            thema=thema,
+            dauer=dauer,
+            sprache=sprache,
+            speaker1=speaker1,
+            role1=role1,
+            speaker2=speaker2,
+            role2=role2,
+            source_text=source_text,
+        )
+        return (script_text,) + navigate("skript bearbeiten")
+    except Exception as e:
+        gr.Warning(f"Fehler bei der Skript-Generierung: {str(e)}")
+        return ("",) + navigate("home")
 
 
 def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data):
@@ -104,17 +129,20 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
     user_id = user_data["id"] if user_data else 1
     
     # Generate audio
-    audio_path = generate_audio(
-        script_text=script_text,
-        thema=thema,
-        dauer=dauer,
-        sprache=sprache,
-        speaker1=s1,
-        speaker2=s2,
-        user_id=user_id,
-        role1=r1,
-        role2=r2
-    )
+    try:
+        audio_path = generate_audio(
+            script_text=script_text,
+            thema=thema,
+            dauer=dauer,
+            sprache=sprache,
+            speaker1=s1,
+            speaker2=s2,
+            user_id=user_id,
+            role1=r1,
+            role2=r2
+        )
+    except Exception as e:
+        gr.Error(f"Fehler bei generierung des Podcats! {str(e)}")
     
     # Refresh podcast list
     updated_data = get_podcasts_for_user(user_id=user_id)
@@ -292,9 +320,9 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                 # Dauer + Sprache
                 with gr.Row():
                     dropdown_dauer = gr.Dropdown(
-                        choices=["1", "2", "3", "4", "5"],
+                        choices=["Kurz(~5min)","Mittel(~15min)","Lang(~30min)"],
                         label="Dauer",
-                        value="1",
+                        value="Mittel(~15min)",
                         interactive=True,
                         scale=1,
                     )
