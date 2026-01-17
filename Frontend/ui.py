@@ -32,14 +32,36 @@ from team04.services.ui_backend import (
 available_voices_primary, available_voices_secondary = get_available_voices()
 available_voices_secondary_with_none = available_voices_secondary + ["Keine"]
 
-ROLE_OPTIONS = [
-    "Moderator",
-    "Erzähler",
-    "Fragesteller (Interviewer)",
-    "Experte",
-    "Co-Host",
-    "Interviewpartner",
-]
+def _get_roles(speaker:int ) -> str:
+    """Hilfsmethode um die verfügbaren Rollen im Dropdown anzeigen"""
+    if speaker == 1:
+        return ["Moderator",
+                "Erzähler",
+                "Fragensteller (Interviewer)",
+                ]
+
+    if speaker == 2:
+        return [
+            "Co-Host",
+            "Experte",
+            "Interviewpartner"
+        ]
+
+
+def _get_matching_role(speaker2, role1) -> str:
+    """Bestimmt die Rolle des zweiten Sprechers basierend auf der Rolle des ersten."""
+    if not speaker2 or speaker2 == "Keine":
+        return "Keine"
+
+    if role1 == "Moderator":
+        return "Co-Host"
+    elif role1 == "Erzähler":
+        return "Experte"
+    elif role1 == "Fragensteller (Interviewer)":
+        return "Interviewpartner"
+    
+    return "Co-Host"  # Fallback
+
 
 
 def format_podcast_date(date_string: str) -> str:
@@ -62,6 +84,7 @@ def navigate(target):
         "loading podcast",
         "login_page",
         "uber_page",
+        "nutzungs_page",
         "share_page",
     ]
     results = []
@@ -142,7 +165,7 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
             role2=r2
         )
     except Exception as e:
-        gr.Error(f"Fehler bei generierung des Podcats! {str(e)}")
+        gr.Error(f"Fehler bei Generierung des Podcasts! {str(e)}")
         return ("",) + navigate("home")
     
     # Refresh podcast list
@@ -297,15 +320,21 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
 
             with gr.Column(scale=0):
                 with gr.Row():
+                    btn_goto_nutzungs = gr.Button("⚖️ Nutzungsbedingungen",
+                                              size="md",
+                                              variant="secondary",
+                                              scale=0,
+                                              elem_classes="header-btn")
+
                     btn_goto_uber = gr.Button("ℹ️ Über",
-                                            size="sm",
+                                            size="md",
                                             variant="secondary",
                                             scale=0,
                                             elem_classes="header-btn"
                                             )
                             
                     btn_goto_login = gr.Button("🔑 Login",
-                                            size="sm",
+                                            size="md",
                                             variant="secondary",
                                             scale=0,
                                             elem_classes="header-btn"
@@ -344,7 +373,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                         interactive=True,
                         scale=1,
                     )
-                    dropdown_role1 = gr.Dropdown(choices=ROLE_OPTIONS, label="Rolle von Sprecher 1", value="Moderator", scale=1)
+                    dropdown_role1 = gr.Dropdown(choices=_get_roles(1), label="Rolle von Sprecher 1", value="Moderator", scale=1)
 
                 # Sprecher 2 (Optional) nutzt nur Slot 2
                 with gr.Row():
@@ -355,7 +384,14 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                         interactive=True,
                         scale=1,
                     )
-                    dropdown_role2 = gr.Dropdown(choices=ROLE_OPTIONS + ["Keine"], label="Rolle von Sprecher 2", value="Keine", scale=1)
+                    dropdown_role2 = gr.Dropdown(choices=_get_roles(2) + ["Keine"], label="Rolle von Sprecher 2", value="Keine", scale=1)
+
+                # Event listeners for auto-filling role2
+                dropdown_speaker2.change(
+                    fn=_get_matching_role,
+                    inputs=[dropdown_speaker2, dropdown_role1],
+                    outputs=dropdown_role2
+                )
                 
                 textbox_thema = gr.Textbox(
                     label="Thema",
@@ -538,7 +574,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
             with gr.Column(scale=1):
                 pass
             with gr.Column(scale=3):
-                share_podcast_title = gr.Markdown("### Teile 'Titel das podcast' mit andere")
+                share_podcast_title = gr.Markdown("### Teile 'Titel des Podcasts' mit anderen")
                 
                 gr.Markdown("**Link:**")
                 
@@ -564,6 +600,53 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                 btn_cancel_share = gr.Button("Zurück")
             with gr.Column(scale=1):
                 pass
+
+    # Nutzungsbedingungen Page
+    with gr.Column(visible=False) as nutzungs_page:
+        gr.Markdown("# Nutzungsbedingungen des Podcast Generators")
+
+        with gr.Row():
+            with gr.Column(scale=1):
+                pass
+            with gr.Column(scale=10):
+                gr.Markdown("""
+                            ## ⚖️ Rechtliche Hinweise und Richtlinien
+
+                            Herzlich willkommen beim **KI Podcast Generator**. Durch die Nutzung dieses Tools erklärst du dich mit den folgenden Bedingungen einverstanden. Bitte lies diese sorgfältig durch.
+
+                            ---
+
+                            ### 1. Zulässige Nutzung und Inhaltsbeschränkungen
+                            Dieser Generator dient der Erstellung von Audio-Inhalten mittels künstlicher Intelligenz. Es ist streng untersagt, Inhalte zu generieren, die:
+                            * **Hassrede oder Diskriminierung:** Personen oder Gruppen aufgrund von Rasse, Religion, Geschlecht, sexueller Orientierung oder Behinderung angreifen oder herabwürdigen.
+                            * **Explizite Inhalte:** Pornografische, sexuell explizite oder jugendgefährdende Darstellungen enthalten.
+                            * **Gewalt:** Gewalt verherrlichen, dazu aufrufen oder extremistische Propaganda verbreiten.
+                            * **Rechtswidrigkeit:** Gegen geltendes deutsches Recht verstoßen oder zu Straftaten anleiten.
+
+                            ### 2. Datenschutz und Privatsphäre
+                            * **Keine personenbezogenen Daten:** Es ist untersagt, private Daten wie Klarnamen, Adressen, Telefonnummern oder andere sensible Informationen von dir oder Dritten in die Textfelder einzugeben oder hochzuladen.
+                            * **Vertraulichkeit:** Lade keine Dokumente (PDFs) hoch, die Geschäftsgeheimnisse oder vertrauliche Informationen enthalten.
+                            * **Speicherung:** Bitte beachte, dass dieses Projekt zu akademischen Zwecken dient. Gib keine Daten ein, die nicht für die Öffentlichkeit bestimmt sind.
+
+                            ### 3. Urheberrecht und Verantwortung
+                            * **Input:** Du bestätigst, dass du die Rechte an den hochgeladenen Texten/PDFs besitzt oder deren Nutzung für die Podcast-Erstellung rechtlich zulässig ist.
+                            * **Output:** Die KI-generierten Stimmen und Inhalte sind als solche zu kennzeichnen. Eine Irreführung Dritter (z.B. Deepfakes zur Täuschung über die Identität einer realen Person) ist untersagt.
+                            * **Haftung:** Das Team 04 und die TH Köln übernehmen keine Haftung für die Richtigkeit der generierten Inhalte oder für Schäden, die aus der Nutzung des Tools resultieren.
+
+                            ### 4. Akademischer Rahmen
+                            Dieses Tool ist im Rahmen eines Moduls an der **TH Köln** entstanden. Es handelt sich um einen Prototypen (Version 1.0). Die Verfügbarkeit des Dienstes kann jederzeit ohne Vorankündigung eingeschränkt oder eingestellt werden.
+
+                            ---
+                            *Durch die Nutzung des "Generate" Buttons bestätigst du, dass du diese Regeln verstanden hast und einhältst.*
+
+                            **Version 1.0 | Team 04 | TH Köln**
+                            """)
+
+                btn_back_from_nutzungs = gr.Button("Zurück", variant="primary")
+            with gr.Column(scale=1):
+                pass
+
+
 
     # --- Über Page ---
     with gr.Column(visible=False) as uber_page:
@@ -605,13 +688,17 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
         loading_page_podcast,
         login_page,
         uber_page,
+        nutzungs_page,
         share_page,
     ]
 
     # --- Events ---
+    btn_goto_nutzungs.click(fn=lambda: navigate("nutzungs_page"), outputs=pages)
+    btn_back_from_nutzungs.click(fn=lambda: navigate("home"), outputs=pages)
+
     btn_goto_uber.click(fn=lambda: navigate("uber_page"), outputs=pages)
     btn_back_from_uber.click(fn=lambda: navigate("home"), outputs=pages)
-    
+
     # Share page events
     btn_cancel_share.click(
         fn=go_back_to_home,
