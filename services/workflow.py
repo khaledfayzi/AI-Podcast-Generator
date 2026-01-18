@@ -100,6 +100,9 @@ class PodcastWorkflow:
     # --------------------------------------------------
     # 2) TTS → Audio
     # --------------------------------------------------
+    """
+    Wird nicht mehr benutzt, keeping it just in case
+    
     def _generate_audio(self, script: str, sprache: str, primary_voice: PodcastStimme,
                         secondary_voice: PodcastStimme | None) -> str:
         audio_segment = self.tts_service.generate_audio(
@@ -125,6 +128,8 @@ class PodcastWorkflow:
         except Exception as e:
             logger.error(f"Fehler beim Speichern der Audiodatei: {e}")
             raise TTSServiceError(f"IO Error beim Speichern: {e}")
+    """
+    
     # --------------------------------------------------
     # 3) Metadaten speichern
     # --------------------------------------------------

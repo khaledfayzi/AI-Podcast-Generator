@@ -550,7 +550,10 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                         if p.get('sprecher'):
                             metadata_lines.append(f"**Sprecher:** {p['sprecher']}")
                         if p.get('rollen'):
-                            metadata_lines.append(f"**Rollen:** {p['rollen']}")
+                            # If there is a comma, it's plural otherwise singular
+                            role_count = p['rollen'].count(',') + 1 if p['rollen'] else 0
+                            rolle_label = "Rollen" if role_count > 1 else "Rolle"
+                            metadata_lines.append(f"**{rolle_label}:** {p['rollen']}")
                         
                         gr.Markdown("\n\n".join(metadata_lines))
 
