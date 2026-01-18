@@ -36,3 +36,5 @@ numpy
 nltk
 pytest
 pytest-mock
+#PYTHONPATH=. pytest --cov=services
+pytest-cov

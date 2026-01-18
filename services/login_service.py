@@ -37,14 +37,16 @@ def request_login_link(db_session: Any, email: str) -> str:
 
     # Generierung eines sicheren 8-stelligen Tokens
     alphabet = string.ascii_letters + string.digits
-    plain_token = ''.join(secrets.choice(alphabet) for _ in range(8))
+    plain_token = "".join(secrets.choice(alphabet) for _ in range(8))
 
     # Argon2 Hashing für die persistente Speicherung
     hash_token = argon2.hash(plain_token)
     now = datetime.datetime.now()
 
     # Rate-Limiting: 5 Minuten Sperrfrist zwischen Token-Anfragen
-    if user.token_timestamp and (now - user.token_timestamp < datetime.timedelta(minutes=5)):
+    if user.token_timestamp and (
+        now - user.token_timestamp < datetime.timedelta(minutes=5)
+    ):
         remaining = datetime.timedelta(minutes=5) - (now - user.token_timestamp)
         minutes, seconds = divmod(remaining.seconds, 60)
         raise AuthenticationError(
@@ -90,7 +92,9 @@ def verify_login_link(db_session: Any, email: str, input_token: str) -> Any:
     # Gültigkeitsprüfung: Token läuft nach 15 Minuten ab
     if datetime.datetime.now() - user.token_timestamp > datetime.timedelta(minutes=15):
         repo.clear_login_token(user)
-        raise AuthenticationError("Der Code ist abgelaufen. Bitte neuen Code anfordern.")
+        raise AuthenticationError(
+            "Der Code ist abgelaufen. Bitte neuen Code anfordern."
+        )
 
     if not argon2.verify(input_token, user.token):
         raise AuthenticationError("Ungültiger Code.")
@@ -174,10 +178,7 @@ def process_verify_login(email: str, code: str) -> Dict[str, Any]:
     try:
         user = verify_login_link(db, email, code)
         db.commit()
-        return {
-            "id": user.userId,
-            "email": user.smailAdresse
-        }
+        return {"id": user.userId, "email": user.smailAdresse}
     except Exception:
         db.rollback()
         raise

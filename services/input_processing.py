@@ -5,11 +5,12 @@ from pathlib import Path
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 
+
 def extract_text_from_file(file_path: str) -> Tuple[str, str]:
     """Reads text from PDF or TXT files and returns (text, title)."""
     if not file_path:
         return "", ""
-    
+
     # Check extension
     path_obj = Path(file_path)
     ext = path_obj.suffix.lower()
@@ -34,6 +35,7 @@ def extract_text_from_file(file_path: str) -> Tuple[str, str]:
         print(f"Error reading file: {e}")
         return "", title
 
+
 def fetch_text_from_url(url: str) -> Tuple[str, str]:
     """Scrapes text from a given URL and returns (text, title)."""
     if not url:
@@ -47,7 +49,9 @@ def fetch_text_from_url(url: str) -> Tuple[str, str]:
 
     soup = BeautifulSoup(r.text, "html.parser")
     # Extract title
-    page_title = soup.title.string.strip() if soup.title and soup.title.string else "Webseite"
+    page_title = (
+        soup.title.string.strip() if soup.title and soup.title.string else "Webseite"
+    )
 
     # Clean up scripts and styles
     for tag in soup(["script", "style", "noscript"]):
@@ -58,14 +62,15 @@ def fetch_text_from_url(url: str) -> Tuple[str, str]:
     text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
     return text.strip(), page_title
 
+
 def build_source_text(file_path, url) -> Tuple[str, str]:
     """Orchestrator: decides whether to use file or URL. Returns (text, title)."""
     file_text, file_title = extract_text_from_file(file_path) if file_path else ("", "")
     url_text, url_title = fetch_text_from_url(url.strip()) if url else ("", "")
-    
+
     # Prioritize file if both are present
     combined_text = file_text if file_text else url_text
-    
+
     # Prioritize file title if present
     combined_title = file_title if file_title else url_title
 

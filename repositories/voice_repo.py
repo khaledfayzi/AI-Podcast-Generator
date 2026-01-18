@@ -8,7 +8,6 @@ class VoiceRepo(BaseRepo):
         self.db = db
         super().__init__(db, PodcastStimme)
 
-
     def get_voices_by_names(self, names: list[str]) -> list[PodcastStimme]:
         """
         Lädt mehrere Stimmen basierend auf einer Liste von Namen.

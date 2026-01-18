@@ -8,7 +8,9 @@ from database.models import PodcastStimme
 from services.tts_service import GoogleTTSService
 
 # Logging Setup
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +36,9 @@ def run_real_test():
     secondary_name = "Sarah"
 
     voice_primary = session.query(PodcastStimme).filter_by(name=primary_name).first()
-    voice_secondary = session.query(PodcastStimme).filter_by(name=secondary_name).first()
+    voice_secondary = (
+        session.query(PodcastStimme).filter_by(name=secondary_name).first()
+    )
 
     if not voice_primary:
         logger.error(f"❌ Stimme '{primary_name}' nicht gefunden!")
@@ -85,7 +89,7 @@ def run_real_test():
         filename = tts_service.generate_audio(
             script_text=script_text,
             primary_voice=voice_primary,
-            secondary_voice=voice_secondary if voice_secondary else voice_primary
+            secondary_voice=voice_secondary if voice_secondary else voice_primary,
         )
 
         if filename:
@@ -103,6 +107,7 @@ def run_real_test():
 def _cleanup_and_exit():
     """Schließt den SSH Tunnel sauber"""
     from database.database import tunnel as db_tunnel
+
     if db_tunnel and db_tunnel.is_active:
         print("Schließe SSH Tunnel...")
         db_tunnel.stop()

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class EmailService:
     def __init__(self):
         """
@@ -12,7 +13,7 @@ class EmailService:
         self.api_key = os.getenv("MAILGUN_API_KEY")
         self.domain = os.getenv("MAILGUN_DOMAIN")
         self.sender_name = "Podcast Generator KI"
-        
+
         if not self.api_key or not self.domain:
             print("Huston, wir haben ein Problem: MAILGUN Keys fehlen in der .env!")
 
@@ -50,7 +51,7 @@ class EmailService:
 
     def send_login_token(self, to_email, token):
         """
-        Verschickt die Mail über die Mailgun API. 
+        Verschickt die Mail über die Mailgun API.
         Wenn kein Key da ist, printen wir es einfach nur in die Konsole (Mock-Mode).
         """
         if not self.api_key or not self.domain:
@@ -60,7 +61,7 @@ class EmailService:
         url = f"https://api.mailgun.net/v3/{self.domain}/messages"
         # Sandbox Domains brauchen postmaster als Absender, sonst zickt Mailgun rum
         sender = f"postmaster@{self.domain}"
-        
+
         try:
             response = requests.post(
                 url,
@@ -70,16 +71,16 @@ class EmailService:
                     "to": to_email,
                     "subject": f"Dein Login-Code: {token}",
                     "text": f"Moin! Dein Code ist: {token}",
-                    "html": self._get_html_template(token)
-                }
+                    "html": self._get_html_template(token),
+                },
             )
-            
+
             if response.status_code == 200:
                 return True
             else:
                 print(f"Mailgun hat genervt: {response.status_code} - {response.text}")
                 return False
-                
+
         except Exception as e:
             print(f"E-Mail senden ist abgeschmiert: {e}")
             return False

@@ -19,7 +19,9 @@ class TestGoogleTTSService(unittest.TestCase):
         Hier patchen wir den Google Client weg.
         """
         # Patch startet hier
-        self.patcher = patch('team04.services.tts_service.texttospeech.TextToSpeechClient')
+        self.patcher = patch(
+            "team04.services.tts_service.texttospeech.TextToSpeechClient"
+        )
         self.MockClient = self.patcher.start()
 
         # Wir konfigurieren den Mock so, dass er eine synthesize_speech Methode hat
@@ -29,9 +31,7 @@ class TestGoogleTTSService(unittest.TestCase):
         mock_response = MagicMock()
         # Wir geben ein valides minimales WAV zurück (Header + Stille), damit AudioSegment nicht meckert
         # 44 Bytes RIFF header für leeres WAV
-        dummy_wav = (
-            b'RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00D\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00'
-        )
+        dummy_wav = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00D\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
         mock_response.audio_content = dummy_wav
         self.mock_instance.synthesize_speech.return_value = mock_response
 
@@ -54,16 +54,14 @@ class TestGoogleTTSService(unittest.TestCase):
             name="Hans",
             ttsVoice_de="de-DE-Wavenet-A",
             ttsVoice_en="en-US-Wavenet-A",
-            geschlecht="m"
+            geschlecht="m",
         )
 
         script = "Hans: Hallo Welt."
 
         # 2. Methode aufrufen
         audio = self.service.generate_audio(
-            script_text=script,
-            sprache="Deutsch",
-            primary_voice=stimme1
+            script_text=script, sprache="Deutsch", primary_voice=stimme1
         )
 
         # 3. Assertions (Überprüfungen)
@@ -77,14 +75,16 @@ class TestGoogleTTSService(unittest.TestCase):
         kwargs = call_args.kwargs
 
         # Wurde die richtige Stimme gewählt?
-        self.assertEqual(kwargs['voice'].name, "de-DE-Wavenet-A")
-        self.assertEqual(kwargs['voice'].language_code, "de-DE")
+        self.assertEqual(kwargs["voice"].name, "de-DE-Wavenet-A")
+        self.assertEqual(kwargs["voice"].language_code, "de-DE")
 
     def test_ssml_generation_features(self):
         """
         Testet ob unsere SSML-Tags (Pause, Betonung) korrekt umgewandelt werden.
         """
-        stimme1 = PodcastStimme(name="Lisa", ttsVoice_de="de-DE-C", ttsVoice_en="en-US-C", geschlecht="w")
+        stimme1 = PodcastStimme(
+            name="Lisa", ttsVoice_de="de-DE-C", ttsVoice_en="en-US-C", geschlecht="w"
+        )
 
         # Input mit Custom-Tags
         script = "Lisa: Das ist **wichtig**. [pause: 1s] Und das ist *ok*."
@@ -93,21 +93,25 @@ class TestGoogleTTSService(unittest.TestCase):
         self.service.generate_audio(script, "Deutsch", stimme1)
 
         call_args = self.mock_instance.synthesize_speech.call_args
-        input_arg = call_args.kwargs['input']
+        input_arg = call_args.kwargs["input"]
         ssml_sent = input_arg.ssml
 
         # Prüfen ob unsere Tags im SSML gelandet sind
         self.assertIn('<emphasis level="strong">wichtig</emphasis>', ssml_sent)
         self.assertIn('<break time="1s"/>', ssml_sent)
         self.assertIn('<emphasis level="moderate">ok</emphasis>', ssml_sent)
-        self.assertIn('<speak>', ssml_sent)
+        self.assertIn("<speak>", ssml_sent)
 
     def test_dialog_switching(self):
         """
         Testet ob zwischen zwei Sprechern korrekt gewechselt wird.
         """
-        stimme1 = PodcastStimme(name="A", ttsVoice_de="voice-A", ttsVoice_en="voice-A", geschlecht="m")
-        stimme2 = PodcastStimme(name="B", ttsVoice_de="voice-B", ttsVoice_en="voice-B", geschlecht="w")
+        stimme1 = PodcastStimme(
+            name="A", ttsVoice_de="voice-A", ttsVoice_en="voice-A", geschlecht="m"
+        )
+        stimme2 = PodcastStimme(
+            name="B", ttsVoice_de="voice-B", ttsVoice_en="voice-B", geschlecht="w"
+        )
 
         script = """
         A: Hallo B.
@@ -131,12 +135,12 @@ class TestGoogleTTSService(unittest.TestCase):
         self.assertEqual(len(calls), 3)
 
         # 1. Call: Stimme A
-        self.assertEqual(calls[0].kwargs['voice'].name, "voice-A")
+        self.assertEqual(calls[0].kwargs["voice"].name, "voice-A")
         # 2. Call: Stimme B
-        self.assertEqual(calls[1].kwargs['voice'].name, "voice-B")
+        self.assertEqual(calls[1].kwargs["voice"].name, "voice-B")
         # 3. Call: Stimme A
-        self.assertEqual(calls[2].kwargs['voice'].name, "voice-A")
+        self.assertEqual(calls[2].kwargs["voice"].name, "voice-A")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

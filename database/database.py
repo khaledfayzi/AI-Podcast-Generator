@@ -11,6 +11,7 @@ engine = None
 tunnel = None
 SessionLocal = None
 
+
 def init_db_connection():
     """
     Initialisiert die Datenbankverbindung, optional über einen SSH-Tunnel
@@ -39,11 +40,11 @@ def init_db_connection():
                 ssh_username=ssh_user,
                 ssh_pkey=ssh_key_path,
                 ssh_password=ssh_password,
-                remote_bind_address=('127.0.0.1', db_port)
+                remote_bind_address=("127.0.0.1", db_port),
             )
             tunnel.start()
             connection_port = tunnel.local_bind_port
-            connection_host = '127.0.0.1'
+            connection_host = "127.0.0.1"
             print("SSH-Tunnel aktiv!")
         except Exception as e:
             print(f"Fehler bei der SSH-Verbindung: {e}")
@@ -60,6 +61,7 @@ def init_db_connection():
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     print("Datenbank verbunden!")
 
+
 def get_db():
     """
     Gibt eine Datenbank-Session zurück.
@@ -70,19 +72,21 @@ def get_db():
         init_db_connection()
 
     try:
-        if 'db' not in g:
+        if "db" not in g:
             g.db = SessionLocal()
         return g.db
     except RuntimeError:
         return SessionLocal()
 
+
 def close_db(e=None):
     """
     Schließt die DB-Session am Ende eines Requests
     """
-    db = g.pop('db', None)
+    db = g.pop("db", None)
     if db is not None:
         db.close()
+
 
 def init_app(app):
     """

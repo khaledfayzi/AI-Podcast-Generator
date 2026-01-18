@@ -4,7 +4,7 @@ import logging
 from pydub import AudioSegment
 
 # Add the parent directory to sys.path to allow imports from team04
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from database.database import get_db, init_db_connection
 from repositories.voice_repo import VoiceRepo
@@ -14,13 +14,14 @@ from database.models import PodcastStimme
 # ==========================================
 # KONFIGURATION: Hier die Namen ändern!
 # ==========================================
-SPEAKER_1_NAME = "Max"   # Name des ersten Sprechers (muss exakt so in DB sein)
-SPEAKER_2_NAME = "Lena" # Name des zweiten Sprechers (muss exakt so in DB sein)
-SPRACHE = "Deutsch"      # "Deutsch" oder "Englisch"
+SPEAKER_1_NAME = "Max"  # Name des ersten Sprechers (muss exakt so in DB sein)
+SPEAKER_2_NAME = "Lena"  # Name des zweiten Sprechers (muss exakt so in DB sein)
+SPRACHE = "Deutsch"  # "Deutsch" oder "Englisch"
 # ==========================================
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def run_test():
     print(f"Starte TTS Test für: {SPEAKER_1_NAME} und {SPEAKER_2_NAME}...")
@@ -45,19 +46,25 @@ def run_test():
     # 3. Stimmen laden
     print("Lade Stimmen aus der Datenbank...")
     voices = voice_repo.get_voices_by_names([SPEAKER_1_NAME, SPEAKER_2_NAME])
-    
+
     # Zuordnung sicherstellen
     voice1 = next((v for v in voices if v.name == SPEAKER_1_NAME), None)
     voice2 = next((v for v in voices if v.name == SPEAKER_2_NAME), None)
 
     if not voice1:
-        print(f"FEHLER: Stimme '{SPEAKER_1_NAME}' nicht gefunden! Bitte Namen in DB prüfen.")
+        print(
+            f"FEHLER: Stimme '{SPEAKER_1_NAME}' nicht gefunden! Bitte Namen in DB prüfen."
+        )
         return
     if not voice2:
-        print(f"FEHLER: Stimme '{SPEAKER_2_NAME}' nicht gefunden! Bitte Namen in DB prüfen.")
+        print(
+            f"FEHLER: Stimme '{SPEAKER_2_NAME}' nicht gefunden! Bitte Namen in DB prüfen."
+        )
         return
 
-    print(f"Gefunden: {voice1.name} (ID: {voice1.stimmeId}) und {voice2.name} (ID: {voice2.stimmeId})")
+    print(
+        f"Gefunden: {voice1.name} (ID: {voice1.stimmeId}) und {voice2.name} (ID: {voice2.stimmeId})"
+    )
 
     # 4. Dummy Dialog erstellen
     script = f"""
@@ -82,10 +89,10 @@ def run_test():
     # 5. Audio generieren
     try:
         audio = tts_service.generate_audio(
-            script_text=script, 
-            sprache=SPRACHE, 
-            primary_voice=voice1, 
-            secondary_voice=voice2
+            script_text=script,
+            sprache=SPRACHE,
+            primary_voice=voice1,
+            secondary_voice=voice2,
         )
 
         if audio:
@@ -93,7 +100,7 @@ def run_test():
             filename = f"tts_test_{SPEAKER_1_NAME}_{SPEAKER_2_NAME}_{SPRACHE}.mp3"
             # Im selben Ordner speichern wie das Skript
             output_path = os.path.join(os.path.dirname(__file__), filename)
-            
+
             # Speichern
             audio.export(output_path, format="mp3")
             print(f"\n✅ ERFOLG! Datei gespeichert unter:\n{output_path}")
@@ -103,7 +110,9 @@ def run_test():
     except Exception as e:
         print(f"\n❌ FEHLER beim Generieren: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     run_test()

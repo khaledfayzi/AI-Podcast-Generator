@@ -3,13 +3,14 @@ from unittest.mock import MagicMock, patch
 import os
 import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 os.environ["GEMINI_API_KEY"] = "DUMMY_KEY"
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/dummy/path.json"
 
 from services.workflow import PodcastWorkflow
 from services.llm_service import LLMService
+
 
 class TestPodcastWorkflowCI(unittest.TestCase):
     @patch("services.workflow.get_db")
@@ -21,22 +22,29 @@ class TestPodcastWorkflowCI(unittest.TestCase):
     @patch("services.workflow.PodcastRepo")
     @patch("uuid.uuid4")
     def test_workflow_run_pipeline_success(
-        self, MockUUID, MockPodcastRepo, MockJobRepo, MockTextRepo, MockVoiceRepo, 
-        MockTTSService, MockLLMService, MockGetDB
+        self,
+        MockUUID,
+        MockPodcastRepo,
+        MockJobRepo,
+        MockTextRepo,
+        MockVoiceRepo,
+        MockTTSService,
+        MockLLMService,
+        MockGetDB,
     ):
         mock_session = MagicMock()
         MockGetDB.return_value = mock_session
         MockUUID.return_value = "1234"
-        
+
         mock_text_repo = MockTextRepo.return_value
-        mock_text_repo.add.side_effect = lambda x: x 
-        
+        mock_text_repo.add.side_effect = lambda x: x
+
         mock_job_repo = MockJobRepo.return_value
         mock_job_repo.add.side_effect = lambda x: x
-        
+
         mock_podcast_repo = MockPodcastRepo.return_value
         mock_podcast_repo.add.side_effect = lambda x: x
-        
+
         mock_voice_repo = MockVoiceRepo.return_value
         mock_voice_obj = MagicMock()
         mock_voice_obj.stimmeId = 1
@@ -51,9 +59,9 @@ class TestPodcastWorkflowCI(unittest.TestCase):
         mock_audio_obj = MagicMock()
         mock_audio_obj.export.return_value = None
         mock_tts.generate_audio.return_value = mock_audio_obj
-        
+
         workflow = PodcastWorkflow()
-        workflow.llm_service = mock_llm 
+        workflow.llm_service = mock_llm
         workflow.tts_service = mock_tts
 
         result_path = workflow.run_pipeline(
@@ -64,14 +72,15 @@ class TestPodcastWorkflowCI(unittest.TestCase):
             dauer=5,
             sprache="Deutsch",
             hauptstimme="Max",
-            zweitstimme="Sara"
+            zweitstimme="Sara",
         )
 
         mock_llm.generate_script.assert_called_once()
         mock_tts.generate_audio.assert_called_once()
         mock_text_repo.add.assert_called_once()
-        
+
         self.assertEqual(result_path, "Output/podcast_google_1234.mp3")
+
 
 if __name__ == "__main__":
     unittest.main()

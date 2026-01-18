@@ -33,12 +33,17 @@ class GoogleTTSService(ITTSService):
             raise TTSServiceError("Google Client start failed.")
 
         try:
-            nltk.data.find('tokenizers/punkt_tab')
+            nltk.data.find("tokenizers/punkt_tab")
         except LookupError:
-            nltk.download('punkt_tab')
+            nltk.download("punkt_tab")
 
-    def generate_audio(self, script_text: str, sprache: str, primary_voice: PodcastStimme,
-                       secondary_voice: PodcastStimme = None) -> AudioSegment | None:
+    def generate_audio(
+        self,
+        script_text: str,
+        sprache: str,
+        primary_voice: PodcastStimme,
+        secondary_voice: PodcastStimme = None,
+    ) -> AudioSegment | None:
         """
         Wandelt ein Skript in ein Audio-Objekt um.
         Nutzt direkt die PodcastStimme-Objekte und wählt die ID basierend auf 'sprache'.
@@ -46,34 +51,35 @@ class GoogleTTSService(ITTSService):
 
         # 1. Konfiguration basierend auf der Sprache wählen
         is_de = sprache.lower() == "deutsch"
-        nltk_lang = 'german' if is_de else 'english'
+        nltk_lang = "german" if is_de else "english"
 
         p_id = primary_voice.ttsVoice_de if is_de else primary_voice.ttsVoice_en
-        voice_params_map = {
-            primary_voice.name: self._create_params_from_string(p_id)
-        }
+        voice_params_map = {primary_voice.name: self._create_params_from_string(p_id)}
 
         if secondary_voice:
             s_id = secondary_voice.ttsVoice_de if is_de else secondary_voice.ttsVoice_en
-            voice_params_map[secondary_voice.name] = self._create_params_from_string(s_id)
+            voice_params_map[secondary_voice.name] = self._create_params_from_string(
+                s_id
+            )
 
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.LINEAR16,
             sample_rate_hertz=48000,
             speaking_rate=0.92,
-            effects_profile_id=['headphone-class-device']
+            effects_profile_id=["headphone-class-device"],
         )
 
         # 2. Parsing & Batching
         dialog_blocks = []
-        lines = script_text.split('\n')
+        lines = script_text.split("\n")
 
         current_params = voice_params_map[primary_voice.name]
         current_text_buffer = []
 
         for line in lines:
             line = line.strip()
-            if not line: continue
+            if not line:
+                continue
 
             next_params = current_params
             clean_text = line
@@ -85,7 +91,8 @@ class GoogleTTSService(ITTSService):
                 next_params = voice_params_map[secondary_voice.name]
                 clean_text = line.split(":", 1)[1].strip()
 
-            if not clean_text: continue
+            if not clean_text:
+                continue
 
             if next_params != current_params and current_text_buffer:
                 dialog_blocks.append((current_params, " ".join(current_text_buffer)))
@@ -101,7 +108,9 @@ class GoogleTTSService(ITTSService):
         audio_segments = []
 
         for params, text_block in dialog_blocks:
-            chunks = self._text_splitter(text_block, max_chars=2000, nltk_lang=nltk_lang)
+            chunks = self._text_splitter(
+                text_block, max_chars=2000, nltk_lang=nltk_lang
+            )
 
             for chunk in chunks:
                 ssml_chunk = self._prepare_final_ssml(chunk, nltk_lang=nltk_lang)
@@ -112,9 +121,13 @@ class GoogleTTSService(ITTSService):
                         response = self.client.synthesize_speech(
                             input=synthesis_input,
                             voice=params,
-                            audio_config=audio_config
+                            audio_config=audio_config,
                         )
-                        audio_segments.append(AudioSegment.from_file(io.BytesIO(response.audio_content), format="wav"))
+                        audio_segments.append(
+                            AudioSegment.from_file(
+                                io.BytesIO(response.audio_content), format="wav"
+                            )
+                        )
                         break
                     except (ResourceExhausted, ServiceUnavailable):
                         if attempt < 2:
@@ -129,14 +142,16 @@ class GoogleTTSService(ITTSService):
 
             audio_segments.append(AudioSegment.silent(duration=200))
 
-        if not audio_segments: return None
+        if not audio_segments:
+            return None
 
         combined_audio = sum(audio_segments, AudioSegment.empty())
         return combined_audio
 
     @staticmethod
     def _text_splitter(text: str, max_chars: int, nltk_lang: str) -> list[str]:
-        if len(text) <= max_chars: return [text]
+        if len(text) <= max_chars:
+            return [text]
         chunks_list = []
         current_chunk_str = ""
         sentence_list = nltk.sent_tokenize(text, language=nltk_lang)
@@ -146,21 +161,22 @@ class GoogleTTSService(ITTSService):
             else:
                 chunks_list.append(current_chunk_str.strip())
                 current_chunk_str = sentence
-        if current_chunk_str: chunks_list.append(current_chunk_str.strip())
+        if current_chunk_str:
+            chunks_list.append(current_chunk_str.strip())
         return chunks_list
 
     @staticmethod
     def _create_params_from_string(tts_voice_string: str):
         return texttospeech.VoiceSelectionParams(
-            language_code=tts_voice_string[:5],
-            name=tts_voice_string
+            language_code=tts_voice_string[:5], name=tts_voice_string
         )
 
     def _prepare_final_ssml(self, text: str, nltk_lang: str) -> str:
-        paragraphs = text.split('\n\n')
+        paragraphs = text.split("\n\n")
         processed_paragraphs = []
         for p_text in paragraphs:
-            if not p_text.strip(): continue
+            if not p_text.strip():
+                continue
             sentences = nltk.sent_tokenize(p_text, language=nltk_lang)
             s_joined = " ".join([f"<s>{s}</s>" for s in sentences])
             processed_paragraphs.append(f"<p>{s_joined}</p>")
@@ -168,22 +184,38 @@ class GoogleTTSService(ITTSService):
         full_ssml = "".join(processed_paragraphs)
 
         # **Text** wird zu einer starken Betonung (höhere Lautstärke/langsameres Sprechen).
-        full_ssml = re.sub(r'\*\*(.*?)\*\*', r'<emphasis level="strong">\1</emphasis>', full_ssml)
+        full_ssml = re.sub(
+            r"\*\*(.*?)\*\*", r'<emphasis level="strong">\1</emphasis>', full_ssml
+        )
 
         # *Text* wird zu einer moderaten Betonung.
-        full_ssml = re.sub(r'\*(.*?)\*', r'<emphasis level="moderate">\1</emphasis>', full_ssml)
+        full_ssml = re.sub(
+            r"\*(.*?)\*", r'<emphasis level="moderate">\1</emphasis>', full_ssml
+        )
 
         # 3. SPEZIAL-SHORTCODES (PAUSEN UND AUSSPRACHE)
         # Erlaubt Pausen wie [pause: 500ms] oder [pause: 1s].
-        full_ssml = re.sub(r'\[pause:\s*(.*?)\]', r'<break time="\1"/>', full_ssml)
+        full_ssml = re.sub(r"\[pause:\s*(.*?)\]", r'<break time="\1"/>', full_ssml)
 
         # Buchstabiert den Inhalt (z.B. [spell: USA] -> U-S-A).
-        full_ssml = re.sub(r'\[spell:\s*(.*?)\]', r'<say-as interpret-as="characters">\1</say-as>', full_ssml)
+        full_ssml = re.sub(
+            r"\[spell:\s*(.*?)\]",
+            r'<say-as interpret-as="characters">\1</say-as>',
+            full_ssml,
+        )
 
         # Löst das Problem mit Jahreszahlen (z.B. 1976 als "Neunzehnhundert..." statt "Eintausend...").
-        full_ssml = re.sub(r'\[year:\s*(\d{4})\]', r'<say-as interpret-as="date" format="y">\1</say-as>', full_ssml)
+        full_ssml = re.sub(
+            r"\[year:\s*(\d{4})\]",
+            r'<say-as interpret-as="date" format="y">\1</say-as>',
+            full_ssml,
+        )
 
         # Korrekte Aussprache von Zeitangaben (z.B. [dur: 2h 30m]).
-        full_ssml = re.sub(r'\[dur:\s*(.*?)\]', r'<say-as interpret-as="duration">\1</say-as>', full_ssml)
-        
+        full_ssml = re.sub(
+            r"\[dur:\s*(.*?)\]",
+            r'<say-as interpret-as="duration">\1</say-as>',
+            full_ssml,
+        )
+
         return f"<speak>{full_ssml}</speak>"
