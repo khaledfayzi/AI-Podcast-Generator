@@ -124,6 +124,7 @@ textarea {
     padding: 30px !important;
     margin-bottom: 20px !important;
     transition: all 0.3s ease !important;
+    color: white !important;
 }
 
 .podcast-card:hover {
@@ -141,6 +142,17 @@ textarea {
     border: none !important;
     background: transparent !important;
     background-color: transparent !important;
+}
+
+/* Force headers and text inside the card to be white */
+.podcast-card h1, 
+.podcast-card h2, 
+.podcast-card h3, 
+.podcast-card h4, 
+.podcast-card p, 
+.podcast-card span, 
+.podcast-card strong {
+    color: white !important;
 }
 
 /* Target Gradio's panel variant specifically */

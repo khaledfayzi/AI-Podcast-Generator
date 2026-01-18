@@ -1,7 +1,3 @@
-"""
-Backend logic for the Gradio UI.
-Separates business logic from the presentation layer.
-"""
 import os
 import logging
 from typing import Optional, Tuple, Dict, Any, List
@@ -259,7 +255,6 @@ def get_user_display_name(user_data: Optional[Dict]) -> str:
     return ""
 
 
-# --- Source Processing ---
 def process_source_input(file_path: Optional[str], url: Optional[str]) -> str:
     """Processes file upload and URL to extract source text."""
     return build_source_text(file_path, url)
