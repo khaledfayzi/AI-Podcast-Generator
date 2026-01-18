@@ -255,6 +255,6 @@ def get_user_display_name(user_data: Optional[Dict]) -> str:
     return ""
 
 
-def process_source_input(file_path: Optional[str], url: Optional[str]) -> str:
-    """Processes file upload and URL to extract source text."""
+def process_source_input(file_path: Optional[str], url: Optional[str]) -> Tuple[str, str]:
+    """Processes file upload and URL to extract source text and title."""
     return build_source_text(file_path, url)
