@@ -832,7 +832,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
     )
     
     btn_back_from_login.click(fn=lambda: navigate("home"), outputs=pages)
-    btn_request_code.click(fn=handle_login_request, inputs=[login_email_input], outputs=[login_status_msg, code_input_group])
+    btn_request_code.click(fn=handle_login_request, inputs=[login_email_input], outputs=[login_status_msg, code_input_group], show_progress=False)
     btn_verify_code.click(
         fn=handle_code_verify,
         inputs=[login_email_input, login_code_input],
