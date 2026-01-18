@@ -116,20 +116,27 @@ def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, ro
 
     if not (has_thema or has_source_url or has_file):
         # Silent return: validation error is already shown by validate_and_show_loading
-        return ("",) + navigate("home")
+        return ("",) + navigate("home") + (gr.update(),)
 
     has_url = source_url and source_url.strip()
     has_file = file_upload is not None
     
+    thema_update = gr.update()
+
     if has_url or has_file:
         try:
             gr.Info("Quelle wird automatisch verarbeitet...")
-            source_text = process_source_input(file_upload, source_url)
+            source_text, source_title = process_source_input(file_upload, source_url)
+            
+            if (not thema or not thema.strip()) and source_title:
+                thema = source_title
+                thema_update = gr.update(value=thema)
+
         except Exception as e:
             gr.Warning(f"Fehler beim Verarbeiten der Quelle: {str(e)}")
             has_thema = thema and thema.strip()
             if not has_thema:
-                return ("",) + navigate("home")
+                return ("",) + navigate("home") + (gr.update(),)
 
     try:
         script_text = generate_script(
@@ -142,10 +149,10 @@ def generate_script_wrapper(thema, dauer, sprache, speaker1, role1, speaker2, ro
             role2=role2,
             source_text=source_text,
         )
-        return (script_text,) + navigate("skript bearbeiten")
+        return (script_text,) + navigate("skript bearbeiten") + (thema_update,)
     except Exception as e:
         gr.Warning(f"Fehler bei der Skript-Generierung: {str(e)}")
-        return ("",) + navigate("home")
+        return ("",) + navigate("home") + (gr.update(),)
 
 
 def validate_and_show_loading(thema, source_url, file_upload):
@@ -403,9 +410,9 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                 # Dauer + Sprache
                 with gr.Row():
                     dropdown_dauer = gr.Dropdown(
-                        choices=["Kurz(~5min)","Mittel(~15min)","Lang(~30min)"],
+                        choices=["Kurz (~5min)","Mittel (~15min)","Lang (~30min)"],
                         label="Dauer",
-                        value="Mittel(~15min)",
+                        value="Mittel (~15min)",
                         interactive=True,
                         scale=1,
                     )
@@ -478,10 +485,20 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                     visible=False,
                 )
 
-                def show_source_preview(file_path, url):
-                    """Process source and show preview if text exists."""
-                    text = process_source_input(file_path, url)
-                    return gr.update(value=text, visible=bool(text and text.strip()))
+                def show_source_preview(file_path, url, current_thema):
+                    """Process source and show preview if text exists. Also updates topic if empty."""
+                    text, title = process_source_input(file_path, url)
+                    
+                    preview_vis = bool(text and text.strip())
+                    preview_update = gr.update(value=text, visible=preview_vis)
+                    
+                    # Update thema if empty and title found
+                    if (not current_thema or not current_thema.strip()) and title:
+                         thema_update = gr.update(value=title)
+                    else:
+                         thema_update = gr.update()
+                         
+                    return preview_update, thema_update
 
                 def toggle_quelle_button(file_obj, url_text):
                     """Show button if either file is uploaded or URL is entered."""
@@ -503,8 +520,8 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
 
                 btn_quelle.click(
                     fn=show_source_preview,
-                    inputs=[file_upload, source_url],
-                    outputs=source_preview,
+                    inputs=[file_upload, source_url, textbox_thema],
+                    outputs=[source_preview, textbox_thema],
                 )
 
                 btn_skript_generieren = gr.Button("Skript Generieren", variant="primary")
@@ -614,7 +631,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
 
     # --- Loading ---
     with gr.Column(visible=False) as loading_page_script:
-        gr.HTML(get_loader_html("Skript wird generiert..."))
+        gr.HTML(get_loader_html("Das Skript wird gerade erstellt, das kann einen Moment dauern."))
         btn_cancel_skript = gr.Button("Abbrechen", variant="secondary")
 
     with gr.Column(visible=False) as loading_page_podcast:
@@ -842,7 +859,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
             source_url,
             file_upload
         ],
-        outputs=[text] + pages
+        outputs=[text] + pages + [textbox_thema]
     )
 
     btn_cancel_skript.click(
