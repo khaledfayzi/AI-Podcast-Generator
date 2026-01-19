@@ -31,26 +31,6 @@ class IWorkflow(ABC):
     """
 
     @abstractmethod
-    def run_pipeline(
-        self,
-        user_prompt: str,
-        user_id: int,
-        llm_id: int,
-        tts_id: int,
-        thema: str,
-        dauer: int,
-        sprache: str,
-        hauptstimme: str,
-        zweitstimme: str = None,
-        speakers: int = 1,
-        roles: dict = None,
-    ) -> str:
-        """
-        Führt den gesamten Prozess der Podcast-Generierung aus.
-        """
-        pass
-
-    @abstractmethod
     def get_voices_for_ui(self) -> Tuple[List[str], List[str]]:
         """Gibt primäre und sekundäre Stimmenoptionen zurück."""
         pass
