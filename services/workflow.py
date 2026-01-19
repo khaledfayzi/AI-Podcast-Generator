@@ -258,7 +258,8 @@ class PodcastWorkflow:
             podcast_repo = PodcastRepo(session)
             if user_id:
                 podcasts = podcast_repo.get_by_user_id(user_id)
-                podcasts.sort(key=lambda x: x.erstelldatum, reverse=True)
+                podcasts.sort(key=lambda x: x.podcastId, reverse=True)
+                podcasts = podcasts[:10]
             else:
                 return []
 
@@ -397,7 +398,7 @@ class PodcastWorkflow:
                 if voices_s:
                     db_s = voices_s[0]
 
-            self._save_metadata(
+            return self._save_metadata(
                 session=session,
                 user_id=user_id,
                 llm_id=llm_id,

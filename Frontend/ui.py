@@ -2,6 +2,8 @@ import gradio as gr
 from gradio.themes import Ocean
 import sys
 import os
+import shutil
+import re
 from datetime import datetime
 
 # Fix damit die Imports aus team04 klappen
@@ -196,18 +198,18 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
         )
     except Exception as e:
         gr.Error(f"Fehler bei Generierung des Podcasts! {str(e)}")
-        yield tuple([gr.update() for _ in range(12)])
+        yield tuple([gr.update() for _ in range(16)])
         return
 
     # YIELD CONTROL
     # If canceled we stop here, the audio object is discarded
     # Nothing is written to the Output folder
-    yield tuple([gr.update() for _ in range(12)])
+    yield tuple([gr.update() for _ in range(16)])
 
     # save to disk & db
     try:
         # Pass audio_obj to be saved now
-        audio_path = save_generated_podcast(
+        audio_path, podcast_data = save_generated_podcast(
             script_text=script_text,
             thema=thema,
             dauer=dauer,
@@ -221,8 +223,24 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
         )
     except Exception as e:
         gr.Error(f"Fehler beim Speichern! {str(e)}")
-        yield tuple([gr.update() for _ in range(12)])
+        yield tuple([gr.update() for _ in range(16)])
         return
+
+    # Für den User wird ein andere Filename erstellt
+    try:
+        
+        safe_thema = re.sub(r'[\\/*?:"<>|]', "", thema).replace(" ", "_")
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        download_filename = f"Podcast-{safe_thema}-{date_str}.mp3"
+        
+        abs_audio_path = get_absolute_audio_path(audio_path)
+        output_dir = os.path.dirname(abs_audio_path)
+        download_path = os.path.join(output_dir, download_filename)
+        
+        shutil.copy2(abs_audio_path, download_path)
+    except Exception as e:
+        print(f"Error creating download file: {e}")
+        download_path = get_absolute_audio_path(audio_path)
 
     # refresh and navigate
     updated_data = get_podcasts_for_user(user_id=user_id)
@@ -234,6 +252,10 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
         gr.update(value=full_path, autoplay=True),
         updated_data,
         gr.update(value=title_md),
+        podcast_data,  # current_podcast_state
+        gr.update(value=download_path, visible=True),  # btn_download_finish
+        gr.update(visible=True),  # btn_share_finish
+        gr.update(visible=True),  # btn_delete_finish
     )
 
 
@@ -392,6 +414,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
     current_user_state = gr.State(None)
     audio_state = gr.State()
     podcast_list_state = gr.State([])
+    current_podcast_state = gr.State({})
 
     with gr.Column(visible=True) as home:
         with gr.Row():
@@ -687,6 +710,12 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
             "## 🎙️ Unbekannter Podcast", elem_id="player_title_header"
         )
         audio_player = gr.Audio(label="Podcast", type="filepath")
+        
+        with gr.Row():
+            btn_download_finish = gr.DownloadButton("⤓ Download", size="md", visible=False)
+            btn_delete_finish = gr.Button("🗑️ Löschen", variant="stop", size="md", visible=False)
+            btn_share_finish = gr.Button("📤 Teilen", size="md", visible=False)
+
         btn_zuruck_audio = gr.Button("Zurück zur Startseite")
 
     # --- Loading ---
@@ -699,7 +728,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
         btn_cancel_skript = gr.Button("Abbrechen", variant="secondary")
 
     with gr.Column(visible=False) as loading_page_podcast:
-        gr.HTML(get_loader_html("Podcast wird generiert..."))
+        gr.HTML(get_loader_html("Podcast wird generiert, das kann einen Moment dauern."))
         btn_cancel_podcast = gr.Button("Abbrechen", variant="secondary")
 
     # --- Login Page ---
@@ -960,7 +989,15 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
             current_user_state,
         ],
         outputs=pages
-        + [audio_player, podcast_list_state, player_title_display],  # markdown output
+        + [
+            audio_player,
+            podcast_list_state,
+            player_title_display,
+            current_podcast_state,
+            btn_download_finish,
+            btn_share_finish,
+            btn_delete_finish,
+        ],  # markdown output
     )
 
     btn_cancel_podcast.click(
@@ -968,6 +1005,27 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
         inputs=None,
         outputs=pages,
         cancels=podcast_task,
+    )
+
+    # Handlers for finish buttons
+    def handle_delete_finish(podcast_data, user_data):
+        if not podcast_data or not user_data:
+            return get_podcasts_for_user(user_data["id"] if user_data else None)
+        pid = podcast_data.get("id")
+        if pid:
+            delete_podcast(pid, user_data["id"])
+        return get_podcasts_for_user(user_data["id"])
+
+    btn_delete_finish.click(
+        fn=handle_delete_finish,
+        inputs=[current_podcast_state, current_user_state],
+        outputs=[podcast_list_state],
+    ).then(fn=lambda: navigate("home"), outputs=pages)
+
+    btn_share_finish.click(
+        fn=handle_share_click,
+        inputs=[current_podcast_state],
+        outputs=pages + [share_podcast_title, share_link_input],
     )
 
     btn_zuruck_audio.click(

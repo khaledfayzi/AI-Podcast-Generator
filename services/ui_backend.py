@@ -123,7 +123,7 @@ def save_generated_podcast(
 
     duration_int = DURATION_MAP.get(dauer, 15)
 
-    workflow.save_podcast_db(
+    _, _, podcast = workflow.save_podcast_db(
         user_id=user_id,
         script=script_text,
         thema=thema,
@@ -136,8 +136,16 @@ def save_generated_podcast(
         role2=role2,
     )
 
+    podcast_data = {
+        "id": podcast.podcastId,
+        "titel": podcast.titel,
+        "dauer": podcast.realdauer,
+        "datum": str(podcast.erstelldatum),
+        "path": podcast.dateipfadAudio,
+    }
+
     # Return the new path so the UI can play it
-    return audio_path
+    return audio_path, podcast_data
 
 
 def generate_audio(
