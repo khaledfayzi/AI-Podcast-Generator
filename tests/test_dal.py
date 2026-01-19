@@ -26,23 +26,20 @@ def db_session():
     session.add_all([llm, tts, voice_max, voice_sara])
     session.commit()
     
-    yield session  # Test läuft hier
+    yield session 
     
     session.close()
     Base.metadata.drop_all(engine)
 
 def test_user_repository(db_session):
     repo = UserRepo(db_session)
-    # Create
     user = repo.create_user("test@example.com")
     
-    # Read
     fetched = repo.get_by_email("test@example.com")
     assert fetched is not None
     assert fetched.smailAdresse == "test@example.com"
     assert fetched.status == "neu"
     
-    # Read Non-Existent
     assert repo.get_by_email("wrong@example.com") is None
 
 def test_text_repository(db_session):
@@ -50,7 +47,6 @@ def test_text_repository(db_session):
     user = user_repo.create_user("author@example.com")
     db_session.commit()
     
-    # Use IDs instead of objects to be safe, though objects work if attached
     llm = db_session.query(LLMModell).first()
 
     text_repo = TextRepo(db_session)
@@ -70,7 +66,6 @@ def test_text_repository(db_session):
     assert saved.titel == "My Script"
 
 def test_job_repository_and_relationships(db_session):
-    # Setup prerequisites
     user = UserRepo(db_session).create_user("jobuser@example.com")
     llm = db_session.query(LLMModell).first()
     tts = db_session.query(TTSModell).first()
@@ -84,7 +79,6 @@ def test_job_repository_and_relationships(db_session):
     ))
     db_session.commit()
 
-    # Test JobRepo
     job_repo = JobRepo(db_session)
     job = Konvertierungsauftrag(
         textId=text.textId,
@@ -99,22 +93,18 @@ def test_job_repository_and_relationships(db_session):
     saved_job = job_repo.add(job)
     db_session.commit()
 
-    # Check Relationships
     assert saved_job.hauptstimme.name == "Max"
     assert saved_job.zweitstimme.name == "Sarah"
     
-    # Test Get Pending
     pending = job_repo.get_pending_jobs()
     assert len(pending) == 1
     
-    # Update Status
     saved_job.status = AuftragsStatus.ABGESCHLOSSEN
     db_session.commit()
     pending_after = job_repo.get_pending_jobs()
     assert len(pending_after) == 0
 
 def test_podcast_repository(db_session):
-    # Create Job first
     user = UserRepo(db_session).create_user("poduser@example.com")
     llm = db_session.query(LLMModell).first()
     tts = db_session.query(TTSModell).first()
@@ -126,8 +116,7 @@ def test_podcast_repository(db_session):
     db_session.add(Konvertierungsauftrag(textId=text.textId, modellId=tts.modellId, gewuenschteDauer=10, status=AuftragsStatus.ABGESCHLOSSEN))
     db_session.commit()
     job = db_session.query(Konvertierungsauftrag).first()
-
-    # Test PodcastRepo
+    
     repo = PodcastRepo(db_session)
     p = Podcast(
         auftragId=job.auftragId,
@@ -138,7 +127,6 @@ def test_podcast_repository(db_session):
     )
     repo.add(p)
     
-    # Create second podcast with separate job
     job2 = Konvertierungsauftrag(textId=text.textId, modellId=tts.modellId, gewuenschteDauer=5, status=AuftragsStatus.ABGESCHLOSSEN)
     db_session.add(job2)
     db_session.commit()
@@ -153,7 +141,6 @@ def test_podcast_repository(db_session):
     repo.add(p2)
     db_session.commit()
 
-    # Test Order (Newest first)
     all_pods = repo.get_all_sorted_by_date_desc()
     assert len(all_pods) == 2
     assert all_pods[0].titel == "Beta Podcast"
@@ -166,7 +153,6 @@ def test_voice_repo(db_session):
     assert "Max" in names
     assert "Sarah" in names
     
-    # Test Filter by Slot
     slot1 = repo.get_voices_by_slot(1)
     assert any(v.name == "Max" for v in slot1)
     assert not any(v.name == "Sarah" for v in slot1)
