@@ -16,7 +16,7 @@ class ITTSService(ABC):
 
     @abstractmethod
     def generate_audio(
-        self, skript: str, hauptstimme: PodcastStimme, zweitstimme: PodcastStimme = None
+        self, skript: str, sprache:str , hauptstimme: PodcastStimme, zweitstimme: PodcastStimme = None
     ) -> str | None:
         """
         Muss von der Unterklasse implementiert werden.
