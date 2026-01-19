@@ -4,9 +4,8 @@ variables:
 test_unit:
   image: python:3.11-slim
   before_script:
-    - apt-get update && apt-get install -y ffmpeg curl
-    - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - source $HOME/.local/bin/env
+    - pip install uv
+    # - apt-get update && apt-get install -y ffmpeg curl (Too slow, not needed for mock tests)
   script:
     - uv venv .venv
     - source .venv/bin/activate
