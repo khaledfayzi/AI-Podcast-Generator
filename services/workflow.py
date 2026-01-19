@@ -7,6 +7,7 @@ import re
 from .llm_service import LLMService
 from .tts_service import GoogleTTSService
 from .exceptions import TTSServiceError
+from ..Interfaces.IServices import IWorkflow
 from database.database import get_db
 from database.models import (
     PodcastStimme,
@@ -52,7 +53,7 @@ class VoiceDTO:
         self.ttsVoice = tts_voice
 
 
-class PodcastWorkflow:
+class PodcastWorkflow(IWorkflow):
     """Workflow: LLM → Skript → TTS → DB"""
 
     def __init__(self):
@@ -62,7 +63,7 @@ class PodcastWorkflow:
     # --------------------------------------------------
     # 1) LLM → Skript
     # --------------------------------------------------
-    def _generate_script(
+    def generate_script(
         self,
         thema: str,
         sprache: str,

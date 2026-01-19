@@ -2,22 +2,29 @@ import os
 import logging
 from typing import Optional, Tuple, Dict, Any, List
 
-from ..services.workflow import PodcastWorkflow
+# REFACTOR: Import only the Interface at the module level
+from ..Interfaces.IServices import IWorkflow
 from ..services.login_service import process_login_request, process_verify_login
 from ..services.exceptions import AuthenticationError
 from ..services.input_processing import build_source_text
 
 logger = logging.getLogger(__name__)
 
-_workflow: Optional[PodcastWorkflow] = None
+# Use Interface for typing
+_workflow: Optional[IWorkflow] = None
 
 DURATION_MAP = {"Kurz (~5min)": 5, "Mittel (~15min)": 15, "Lang (~30min)": 30}
 
 
-def get_workflow() -> PodcastWorkflow:
-    """Returns a singleton instance of PodcastWorkflow."""
+def get_workflow() -> IWorkflow:
+    """
+    Returns a singleton instance of the Workflow.
+    Uses lazy loading to import the concrete implementation only when needed.
+    """
     global _workflow
     if _workflow is None:
+        # REFACTOR: Lazy import of the concrete implementation
+        from ..services.workflow import PodcastWorkflow
         _workflow = PodcastWorkflow()
     return _workflow
 
@@ -42,19 +49,6 @@ def generate_script(
 ) -> str:
     """
     Generates a podcast script based on the given parameters.
-
-    Args:
-        thema: The topic for the podcast
-        dauer: Duration in minutes (as string)
-        sprache: Language (Deutsch/English)
-        speaker1: Primary speaker name
-        role1: Role of primary speaker
-        speaker2: Secondary speaker name (optional)
-        role2: Role of secondary speaker (optional)
-        source_text: Source text to incorporate
-
-    Returns:
-        Generated script text
     """
     workflow = get_workflow()
 
@@ -72,7 +66,8 @@ def generate_script(
 
     duration_int = DURATION_MAP.get(dauer, 15)
 
-    return workflow._generate_script(
+    # Uses the public interface method
+    return workflow.generate_script(
         thema=thema,
         sprache=sprache,
         dauer=duration_int,
@@ -160,18 +155,6 @@ def generate_audio(
 ) -> str:
     """
     Generates audio from a script.
-
-    Args:
-        script_text: The script to convert to audio
-        thema: Topic/title for metadata
-        dauer: Duration in minutes
-        sprache: Language
-        speaker1: Primary speaker
-        speaker2: Secondary speaker (optional)
-        user_id: User ID for metadata
-
-    Returns:
-        Path to the generated audio file
     """
     workflow = get_workflow()
 
@@ -190,8 +173,8 @@ def generate_audio(
         hauptstimme=speaker1,
         zweitstimme=speaker2,
         user_id=user_id,
-        role1=role1,  # NEU
-        role2=role2,  # NEU
+        role1=role1,
+        role2=role2,
     )
 
 
@@ -224,12 +207,6 @@ def validate_smail_email(email: str) -> bool:
 def request_login_code(email: str) -> Tuple[bool, str]:
     """
     Requests a login code for the given email.
-
-    Args:
-        email: User's email address
-
-    Returns:
-        Tuple of (success, message)
     """
     if not validate_smail_email(email):
         return False, "Bitte eine gültige Smail-Adresse eingeben!"
@@ -250,13 +227,6 @@ def request_login_code(email: str) -> Tuple[bool, str]:
 def verify_login_code(email: str, code: str) -> Tuple[bool, Optional[Dict], str]:
     """
     Verifies a login code.
-
-    Args:
-        email: User's email address
-        code: The verification code
-
-    Returns:
-        Tuple of (success, user_data, message)
     """
     try:
         user_data = process_verify_login(email, code)
