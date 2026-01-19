@@ -16,6 +16,7 @@ services:
       - .env
     volumes:
       - ./data:/app/data
+      - ./Output:/app/Output
       # Google Key Pfad in der .env setzen 
       - ${GOOGLE_KEY_LOCAL_PATH}:/app/google-credentials.json
       # SSH Key Pfad in der .env setzen, auf VPS mit lokaler DB nicht notwendig!
