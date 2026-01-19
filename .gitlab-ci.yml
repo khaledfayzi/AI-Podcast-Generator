@@ -1,24 +1,21 @@
-image: python:latest
-
-# Cache für Pip definieren, damit nicht jedes Mal alles neu heruntergeladen wird
 variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-
-cache:
-  paths:
-    - .cache/pip
-
-stages:
-  - test
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
 
 test_unit:
-  stage: test
   image: python:3.11-slim
   before_script:
-    - apt-get update && apt-get install -y ffmpeg
+    - apt-get update && apt-get install -y ffmpeg curl
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - source $HOME/.cargo/env
   script:
-    - pip install -r requirements.txt
+    - uv venv .venv
+    - source .venv/bin/activate
+    - uv pip install -r requirements.txt
     - python tests/test_pipeline.py
+  cache:
+    key: "uv-v1"
+    paths:
+      - .cache/uv
   only:
     - main
     - dev
