@@ -17,7 +17,7 @@ try:
 except ImportError:
     import ui_handlers as handlers
 
-from team04.services.ui_backend import (
+from .controller import (
     get_available_voices,
     get_absolute_audio_path,
 )

@@ -8,8 +8,7 @@ from datetime import datetime
 # Fix imports to ensure team04 module is found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-# Import backend services
-from team04.services.ui_backend import (
+from .controller import (
     generate_script,
     get_podcasts_for_user,
     delete_podcast,
