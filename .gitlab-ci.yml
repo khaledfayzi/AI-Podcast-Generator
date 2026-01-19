@@ -9,7 +9,7 @@ test_unit:
     - uv venv .venv
     - source .venv/bin/activate
     - uv pip install -r requirements.txt
-    # Run all tests (ignoring real DB integration tests which fail in CI)
+    - export PYTHONPATH=.
     - pytest --ignore=tests/test_real_db.py
   cache:
     key: "uv-v1"
