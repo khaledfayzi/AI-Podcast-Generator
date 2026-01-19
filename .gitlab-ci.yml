@@ -6,7 +6,7 @@ test_unit:
   before_script:
     - apt-get update && apt-get install -y ffmpeg curl
     - curl -LsSf https://astral.sh/uv/install.sh | sh
-    - source $HOME/.cargo/env
+    - source $HOME/.local/bin/env
   script:
     - uv venv .venv
     - source .venv/bin/activate
