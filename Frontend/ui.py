@@ -12,13 +12,11 @@ with open(css_path, "r", encoding="utf-8") as f:
 
 logo_with_text_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "logo", "logo_mit_text.png"))
 
-# Import Handlers
 try:
     from . import ui_handlers as handlers
 except ImportError:
     import ui_handlers as handlers
 
-# Import necessary backend functions for UI init
 from team04.services.ui_backend import (
     get_available_voices,
     get_absolute_audio_path,
@@ -482,7 +480,6 @@ with gr.Blocks(
             with gr.Column(scale=1):
                 pass
 
-    # MUST match order in ui_handlers.PAGE_NAMES
     pages = [
         home,
         skript_bearbeiten,

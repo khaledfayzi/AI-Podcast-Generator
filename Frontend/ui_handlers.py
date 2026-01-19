@@ -10,9 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 
 # Import backend services
 from team04.services.ui_backend import (
-    get_available_voices,
     generate_script,
-    generate_audio,
     get_podcasts_for_user,
     delete_podcast,
     get_absolute_audio_path,

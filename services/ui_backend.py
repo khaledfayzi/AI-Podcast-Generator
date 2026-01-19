@@ -9,7 +9,6 @@ from .input_processing import build_source_text
 
 logger = logging.getLogger(__name__)
 
-# Singleton workflow instance
 _workflow: Optional[PodcastWorkflow] = None
 
 DURATION_MAP = {"Kurz (~5min)": 5, "Mittel (~15min)": 15, "Lang (~30min)": 30}
