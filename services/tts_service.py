@@ -61,6 +61,8 @@ class GoogleTTSService(ITTSService):
                 s_id
             )
 
+        logger.info(f"DEBUG: Voice params: {voice_params_map}")
+
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.LINEAR16,
             sample_rate_hertz=48000,
