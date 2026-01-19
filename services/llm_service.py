@@ -1,6 +1,7 @@
 import os
 import time
 
+import logging
 import requests
 from dotenv import load_dotenv
 
@@ -9,6 +10,7 @@ from Interfaces.IServices import ILLMService
 from .exceptions import LLMServiceError
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 class LLMService(ILLMService):
@@ -155,6 +157,7 @@ class LLMService(ILLMService):
             duration = 5
 
         target_words = duration * self.WORDS_PER_MIN
+        logger.info(f"DEBUG: {target_words} und die Dauer: {duration}")
 
         source_text = (config.get("source_text") or "").strip()
         try:
