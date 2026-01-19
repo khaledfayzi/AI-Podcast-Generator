@@ -12,7 +12,6 @@ from pydub import AudioSegment
 from Interfaces.IServices import ITTSService
 from database.models import PodcastStimme
 from .exceptions import TTSServiceError
-from database.database import get_db
 
 load_dotenv()
 logger = logging.getLogger(__name__)

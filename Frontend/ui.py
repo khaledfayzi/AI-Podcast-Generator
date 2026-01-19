@@ -436,7 +436,7 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
                     dropdown_dauer = gr.Dropdown(
                         choices=["Kurz (~5min)", "Mittel (~15min)", "Lang (~30min)"],
                         label="Dauer",
-                        value="Mittel (~15min)",
+                        value="Kurz (~5min)",
                         interactive=True,
                         scale=1,
                     )
