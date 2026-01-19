@@ -37,7 +37,7 @@ with gr.Blocks(
     podcast_list_state = gr.State([])
     current_podcast_state = gr.State({})
 
-    with gr.Column(visible=True) as home:
+    with gr.Column(visible=False) as home:
         with gr.Row():
             with gr.Column(scale=1):
                 gr.Image(
@@ -340,7 +340,7 @@ with gr.Blocks(
         btn_cancel_podcast = gr.Button("Abbrechen", variant="secondary")
 
     # --- Login Page ---
-    with gr.Column(visible=False) as login_page:
+    with gr.Column(visible=True) as login_page:
         gr.Markdown("# Login")
         gr.Markdown(
             "Bitte gib deine Smail-Adresse ein, um einen Login-Code zu erhalten."
@@ -363,7 +363,6 @@ with gr.Blocks(
                     )
                     btn_verify_code = gr.Button("Anmelden")
 
-                btn_back_from_login = gr.Button("Zurück zum Start")
             with gr.Column(scale=1):
                 pass
 
@@ -531,7 +530,6 @@ with gr.Blocks(
         ],
     )
 
-    btn_back_from_login.click(fn=lambda: handlers.navigate("home"), outputs=pages)
     btn_request_code.click(
         fn=handlers.handle_login_request,
         inputs=[login_email_input],

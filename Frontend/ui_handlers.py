@@ -307,31 +307,17 @@ def handle_code_verify(email, code):
 
 
 def handle_login_click(current_user):
-    """Handles login/logout button click."""
-    if current_user:  # Logout
-        return (
-            None,  # current_user_state
-            gr.update(value="🔑 Login", variant="secondary"),  # btn_goto_login
-            *navigate("home"),
-            [],  # podcast_list_state
-            gr.update(value=""),  # login_email_input
-            gr.update(value=""),  # login_code_input
-            gr.update(visible=False),  # login_status_msg
-            gr.update(visible=False),  # code_input_group
-            gr.update(visible=False),  # btn_quelle
-        )
-    else:  # Show login page
-        return (
-            current_user,
-            gr.update(),
-            *navigate("login_page"),
-            gr.update(),
-            gr.update(value=""),
-            gr.update(value=""),
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(),
-        )
+    return (
+        None,  # Reset current_user_state to None
+        gr.update(value="🔑 Login", variant="secondary"),  # Reset button appearance
+        *navigate("login_page"),  # Force navigation to Login Page
+        [],  # Clear podcast_list_state
+        gr.update(value=""),  # Clear login_email_input
+        gr.update(value=""),  # Clear login_code_input
+        gr.update(visible=False),  # Hide login_status_msg
+        gr.update(visible=False),  # Hide code_input_group
+        gr.update(visible=False),  # Hide btn_quelle
+    )
 
 
 def refresh_podcasts_for_user(user_data):

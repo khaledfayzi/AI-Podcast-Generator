@@ -2,7 +2,6 @@ import os
 import logging
 from typing import Optional, Tuple, Dict, Any, List
 
-# REFACTOR: Import only the Interface at the module level
 from ..Interfaces.IServices import IWorkflow
 from ..services.login_service import process_login_request, process_verify_login
 from ..services.exceptions import AuthenticationError
@@ -23,7 +22,6 @@ def get_workflow() -> IWorkflow:
     """
     global _workflow
     if _workflow is None:
-        # REFACTOR: Lazy import of the concrete implementation
         from ..services.workflow import PodcastWorkflow
         _workflow = PodcastWorkflow()
     return _workflow
