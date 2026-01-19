@@ -5,12 +5,12 @@ test_unit:
   image: python:3.11-slim
   before_script:
     - pip install uv
-    # - apt-get update && apt-get install -y ffmpeg curl (Too slow, not needed for mock tests)
   script:
     - uv venv .venv
     - source .venv/bin/activate
     - uv pip install -r requirements.txt
-    - python tests/test_pipeline.py
+    # Run all tests (ignoring real DB integration tests which fail in CI)
+    - pytest --ignore=tests/test_real_db.py
   cache:
     key: "uv-v1"
     paths:
