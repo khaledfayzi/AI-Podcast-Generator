@@ -13,6 +13,8 @@ css_path = os.path.join(os.path.dirname(__file__), "style.css")
 with open(css_path, "r", encoding="utf-8") as f:
     css_content = f.read()
 
+logo_with_text_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "logo", "logo_mit_text.png"))
+
 # Import backend service instead of direct workflow/service imports
 from team04.services.ui_backend import (
     get_available_voices,
@@ -409,7 +411,11 @@ def get_loader_html(message):
     """
 
 
-with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as demo:
+with gr.Blocks(
+    css=css_content,
+    theme=gr.themes.Soft(primary_hue="indigo"),
+    title="KI Podcast Generator",
+) as demo:
     # --- Global State ---
     current_user_state = gr.State(None)
     audio_state = gr.State()
@@ -419,7 +425,18 @@ with gr.Blocks(css=css_content, theme=gr.themes.Soft(primary_hue="indigo")) as d
     with gr.Column(visible=True) as home:
         with gr.Row():
             with gr.Column(scale=1):
-                gr.Markdown("# KI Podcast Generator")
+
+                gr.Image(
+                    logo_with_text_path,
+                    show_label=False,
+                    show_download_button=False,
+                    show_fullscreen_button=False,
+                    interactive=False,
+                    height=100,
+                    width=500,
+                    elem_id="header-logo",
+                    container=False,
+                )
 
             with gr.Column(scale=0):
                 with gr.Row():
