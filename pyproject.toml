@@ -1,0 +1,13 @@
+[project]
+name = "podcast-generator"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = "."
+testpaths = ["tests"]
+addopts = "--ignore=tests/test_real_db.py"
+filterwarnings = [
+    "ignore::DeprecationWarning:pydub.utils",
+    "ignore::RuntimeWarning:pydub.utils",
+]

@@ -7,7 +7,7 @@ import re
 from .llm_service import LLMService
 from .tts_service import GoogleTTSService
 from .exceptions import TTSServiceError
-from ..Interfaces.IServices import IWorkflow
+from Interfaces.IServices import IWorkflow
 from database.database import get_db
 from database.models import (
     PodcastStimme,
@@ -215,7 +215,7 @@ class PodcastWorkflow(IWorkflow):
         has_second_voice = zweitstimme and zweitstimme != "Keine"
         speakers = 2 if has_second_voice else 1
 
-        return self._generate_script(
+        return self.generate_script(
             thema=thema,
             sprache=sprache,
             dauer=dauer,
@@ -490,7 +490,7 @@ class PodcastWorkflow(IWorkflow):
                 else None
             )
 
-            script = self._generate_script(
+            script = self.generate_script(
                 thema, sprache, dauer, 2 if db_s else 1, {}, hauptstimme, zweitstimme
             )
 
