@@ -47,7 +47,7 @@ with gr.Blocks(
                     show_fullscreen_button=False,
                     interactive=False,
                     height=100,
-                    width=500,
+                    width=330,
                     elem_id="header-logo",
                     container=False,
                 )
