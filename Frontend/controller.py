@@ -33,14 +33,12 @@ def get_workflow() -> IWorkflow:
     return _workflow
 
 
-# --- Voice Management ---
 def get_available_voices() -> Tuple[List[str], List[str]]:
     """Returns primary and secondary voice options."""
     workflow = get_workflow()
     return workflow.get_voices_for_ui()
 
 
-# --- Script Generation ---
 def generate_script(
     thema: str,
     dauer: str,
@@ -83,7 +81,6 @@ def generate_script(
     )
 
 
-# --- Audio Generation ---
 def generate_audio_only(
     script_text: str, sprache: str, speaker1: str, speaker2: Optional[str]
 ):
@@ -111,10 +108,8 @@ def save_generated_podcast(
     """Wrapper to save file and metadata."""
     workflow = get_workflow()
 
-    # save file if not cancelled
     audio_path = workflow.save_audio_file(audio_obj)
 
-    # save metadata
     if not speaker2 or speaker2 == "Keine" or speaker2 == speaker1:
         speaker2 = None
         role2 = None

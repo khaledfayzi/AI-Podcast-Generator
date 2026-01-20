@@ -94,7 +94,6 @@ def get_loader_html(message):
     </style>
     """
 
-# --- Navigation Helper ---
 def navigate(target):
     """Schaltet die Sichtbarkeit der Seiten um."""
     results = []
