@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Optional, Tuple, Dict, Any, List
 
-from Interfaces.IServices import IWorkflow
+from interfaces.iservices import IWorkflow
 from services.login_service import process_login_request, process_verify_login
 from services.exceptions import AuthenticationError
 from services.input_processing import build_source_text

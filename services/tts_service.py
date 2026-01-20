@@ -9,7 +9,7 @@ from google.cloud import texttospeech
 from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 from pydub import AudioSegment
 
-from Interfaces.IServices import ITTSService
+from interfaces.iservices import ITTSService
 from database.models import PodcastStimme
 from .exceptions import TTSServiceError
 

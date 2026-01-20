@@ -5,7 +5,7 @@ import logging
 import requests
 from dotenv import load_dotenv
 
-from Interfaces.IServices import ILLMService
+from interfaces.iservices import ILLMService
 
 from .exceptions import LLMServiceError
 

@@ -7,7 +7,7 @@ import re
 from .llm_service import LLMService
 from .tts_service import GoogleTTSService
 from .exceptions import TTSServiceError
-from Interfaces.IServices import IWorkflow, ILLMService, ITTSService
+from interfaces.iservices import IWorkflow, ILLMService, ITTSService
 from database.database import get_db
 from database.models import (
     PodcastStimme,
