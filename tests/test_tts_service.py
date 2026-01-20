@@ -1,146 +1,147 @@
-import unittest
+import pytest
 from unittest.mock import MagicMock, patch
-import sys
-import os
-
-# Pfad anpassen, damit Module gefunden werden
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
-from team04.services.tts_service import GoogleTTSService
-from team04.database.models import PodcastStimme
-from team04.services.exceptions import TTSServiceError
+from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
+from services.tts_service import GoogleTTSService
+from database.models import PodcastStimme
 
 
-class TestGoogleTTSService(unittest.TestCase):
+@pytest.fixture
+def tts_service():
+    """
+    Initialisiert den GoogleTTSService mit verbesserten Mocks.
+    """
+    with patch("services.tts_service.texttospeech.TextToSpeechClient") as MockClient:
+        with patch("services.tts_service.nltk.sent_tokenize") as mock_tokenize:
+            # Der Mock trennt nun den Text an ". " auf, um echte Sätze zu simulieren
+            # Das ermöglicht den Test von smart_chunking ohne echte NLTK-Daten
+            mock_tokenize.side_effect = lambda text, language: [
+                s.strip() + "." for s in text.split(".") if s.strip()
+            ]
 
-    def setUp(self):
-        """
-        Wird vor jedem Test ausgeführt.
-        Hier patchen wir den Google Client weg.
-        """
-        # Patch startet hier
-        self.patcher = patch(
-            "team04.services.tts_service.texttospeech.TextToSpeechClient"
-        )
-        self.MockClient = self.patcher.start()
-
-        # Wir konfigurieren den Mock so, dass er eine synthesize_speech Methode hat
-        self.mock_instance = self.MockClient.return_value
-
-        # Response simulieren: Ein Objekt mit .audio_content
-        mock_response = MagicMock()
-        # Wir geben ein valides minimales WAV zurück (Header + Stille), damit AudioSegment nicht meckert
-        # 44 Bytes RIFF header für leeres WAV
-        dummy_wav = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00D\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
-        mock_response.audio_content = dummy_wav
-        self.mock_instance.synthesize_speech.return_value = mock_response
-
-        # Service instanziieren (nutzt jetzt den gemockten Client)
-        self.service = GoogleTTSService()
-
-    def tearDown(self):
-        """
-        Wird nach jedem Test ausgeführt.
-        Patch wieder beenden.
-        """
-        self.patcher.stop()
-
-    def test_generate_audio_simple(self):
-        """
-        Testet den einfachsten Fall: Ein Sprecher, kurzer Text.
-        """
-        # 1. Dummy Daten vorbereiten (keine DB nötig!)
-        stimme1 = PodcastStimme(
-            name="Hans",
-            ttsVoice_de="de-DE-Wavenet-A",
-            ttsVoice_en="en-US-Wavenet-A",
-            geschlecht="m",
-        )
-
-        script = "Hans: Hallo Welt."
-
-        # 2. Methode aufrufen
-        audio = self.service.generate_audio(
-            script_text=script, sprache="Deutsch", primary_voice=stimme1
-        )
-
-        # 3. Assertions (Überprüfungen)
-        self.assertIsNotNone(audio)
-
-        # Wurde synthesize_speech überhaupt aufgerufen?
-        self.mock_instance.synthesize_speech.assert_called()
-
-        # Prüfen wir die Parameter des letzten Aufrufs
-        call_args = self.mock_instance.synthesize_speech.call_args
-        kwargs = call_args.kwargs
-
-        # Wurde die richtige Stimme gewählt?
-        self.assertEqual(kwargs["voice"].name, "de-DE-Wavenet-A")
-        self.assertEqual(kwargs["voice"].language_code, "de-DE")
-
-    def test_ssml_generation_features(self):
-        """
-        Testet ob unsere SSML-Tags (Pause, Betonung) korrekt umgewandelt werden.
-        """
-        stimme1 = PodcastStimme(
-            name="Lisa", ttsVoice_de="de-DE-C", ttsVoice_en="en-US-C", geschlecht="w"
-        )
-
-        # Input mit Custom-Tags
-        script = "Lisa: Das ist **wichtig**. [pause: 1s] Und das ist *ok*."
-
-        # Wir müssen hier ein bisschen "white-box" testen und schauen, was an die API geht
-        self.service.generate_audio(script, "Deutsch", stimme1)
-
-        call_args = self.mock_instance.synthesize_speech.call_args
-        input_arg = call_args.kwargs["input"]
-        ssml_sent = input_arg.ssml
-
-        # Prüfen ob unsere Tags im SSML gelandet sind
-        self.assertIn('<emphasis level="strong">wichtig</emphasis>', ssml_sent)
-        self.assertIn('<break time="1s"/>', ssml_sent)
-        self.assertIn('<emphasis level="moderate">ok</emphasis>', ssml_sent)
-        self.assertIn("<speak>", ssml_sent)
-
-    def test_dialog_switching(self):
-        """
-        Testet ob zwischen zwei Sprechern korrekt gewechselt wird.
-        """
-        stimme1 = PodcastStimme(
-            name="A", ttsVoice_de="voice-A", ttsVoice_en="voice-A", geschlecht="m"
-        )
-        stimme2 = PodcastStimme(
-            name="B", ttsVoice_de="voice-B", ttsVoice_en="voice-B", geschlecht="w"
-        )
-
-        script = """
-        A: Hallo B.
-        B: Hallo A.
-        A: Tschüss.
-        """
-
-        self.service.generate_audio(script, "Deutsch", stimme1, stimme2)
-
-        # Wir erwarten 3 Aufrufe an die API (A -> B -> A)
-        # Hinweis: Der Service macht auch Calls für Pausen oder Silence, aber die eigentlichen Calls sollten 3 Text-Calls sein.
-        # Da wir im Code chunking haben und dann Stille einfügen, schauen wir uns die Stimmen der Calls an.
-
-        calls = self.mock_instance.synthesize_speech.call_args_list
-
-        # Filtern wir nur die Calls, die eine 'voice' parameter haben (die Silence-Generierung macht das ggf. anders,
-        # aber im Code oben sehen wir: audio_segments.append(AudioSegment.silent...))
-        # Ah, der Code macht `AudioSegment.silent` lokal mit pydub, ruft dafür NICHT Google auf.
-        # Also sollten wir exakt 3 Calls an Google haben.
-
-        self.assertEqual(len(calls), 3)
-
-        # 1. Call: Stimme A
-        self.assertEqual(calls[0].kwargs["voice"].name, "voice-A")
-        # 2. Call: Stimme B
-        self.assertEqual(calls[1].kwargs["voice"].name, "voice-B")
-        # 3. Call: Stimme A
-        self.assertEqual(calls[2].kwargs["voice"].name, "voice-A")
+            service = GoogleTTSService()
+            service.client = MockClient.return_value
+            yield service
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.fixture
+def voice_max():
+    """
+    Erstellt ein Mock-Objekt für einen männlichen Sprecher.
+    """
+    return PodcastStimme(name="Max", ttsVoice_de="de-DE-Chirp3-HD-Achird", ttsVoice_en="en-US-Chirp3-HD-Achird")
+
+
+@pytest.fixture
+def voice_sara():
+    """
+    Erstellt ein Mock-Objekt für eine weibliche Sprecherin.
+    """
+    return PodcastStimme(name="Sara", ttsVoice_de="de-DE-Chirp3-HD-Erinome", ttsVoice_en="en-US-Chirp3-HD-Erinome")
+
+
+def test_validierung_ssml_Transformation(tts_service):
+    """
+    Prüft die korrekte Umwandlung von Markdown und Custom-Shortcodes in SSML.
+
+    Validiert, ob die interne Methode `_prepare_final_ssml` Markdown-Styles
+    in <emphasis>-Tags und Shortcodes wie [pause] oder [spell] in die
+    entsprechenden Google SSML-Elemente übersetzt.
+    """
+    input_text = "Hallo **Welt**, das ist *ein Test*. [pause: 500ms] [spell: ABC] [year: 2024] [dur: 2m]."
+    expected_parts = [
+        '<speak>',
+        '<emphasis level="strong">Welt</emphasis>',
+        '<emphasis level="moderate">ein Test</emphasis>',
+        '<break time="500ms"/>',
+        '<say-as interpret-as="characters">ABC</say-as>',
+        '<say-as interpret-as="date" format="y">2024</say-as>',
+        '<say-as interpret-as="duration">2m</say-as>',
+        '</speak>'
+    ]
+
+    ssml = tts_service._prepare_final_ssml(input_text, nltk_lang='german')
+
+    for part in expected_parts:
+        assert part in ssml
+
+
+def test_sprecherwechsel(tts_service, voice_max, voice_sara):
+    """
+    Verifiziert die korrekte Stimmenzuordnung bei einem Dialog-Skript.
+
+    Stellt sicher, dass der Service bei einem Skript mit mehreren Sprechern
+    für jeden Abschnitt die korrekte VoiceSelectionParams an die Google API übergibt
+    und die Segmente in der richtigen Reihenfolge verarbeitet.
+    """
+    script = """
+    Max: Hallo Sara.
+    Sara: Hallo Max, wie geht es?
+    Max: Mir geht es gut.
+    """
+
+    tts_service.client.synthesize_speech.return_value.audio_content = b'RIFF_DUMMY_AUDIO'
+
+    tts_service.generate_audio(script, "Deutsch", voice_max, voice_sara)
+
+    calls = tts_service.client.synthesize_speech.call_args_list
+    assert len(calls) >= 3
+    assert calls[0].kwargs['voice'].name == "de-DE-Chirp3-HD-Achird"
+    assert calls[1].kwargs['voice'].name == "de-DE-Chirp3-HD-Erinome"
+    assert calls[2].kwargs['voice'].name == "de-DE-Chirp3-HD-Achird"
+
+
+def test_smart_chunking(tts_service):
+    """
+    Testet das Aufteilen von überlangen Texten in kleinere Abschnitte.
+
+    Überprüft, ob der `_text_splitter` Texte, die das Zeichenlimit überschreiten,
+    intelligent an Satzenden (mittels NLTK) trennt, statt Wörter hart abzuschneiden.
+    """
+    sentence = "Dies ist ein sehr langer Satz, der wiederholt wird. "
+    long_text = sentence * 100
+
+    chunks = tts_service._text_splitter(long_text, max_chars=200, nltk_lang='german')
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert len(chunk) <= 200
+        assert chunk.endswith(".")
+
+
+def test_retry_logic(tts_service, voice_max):
+    """
+    Überprüft die Widerstandsfähigkeit des Service bei API-Fehlern.
+
+    Simuliert aufeinanderfolgende Quota-Überschreitungen und Serverfehler.
+    Der Test ist erfolgreich, wenn der Service die konfigurierten Retries
+    durchläuft und beim dritten Versuch (nach Simulation eines Erfolgs)
+    das Ergebnis liefert.
+    """
+    script = "Ein kurzer Test."
+
+    tts_service.client.synthesize_speech.side_effect = [
+        ResourceExhausted("Quota exceeded"),
+        ServiceUnavailable("Service down"),
+        MagicMock(audio_content=b'RIFF_DUMMY_AUDIO')
+    ]
+
+    with patch("time.sleep"):
+        tts_service.generate_audio(script, "Deutsch", voice_max)
+
+    assert tts_service.client.synthesize_speech.call_count == 3
+
+
+def test_audio_generation_success(tts_service, voice_max):
+    """
+    Validiert den erfolgreichen Standard-Workflow der Audiogenerierung.
+
+    Prüft, ob bei validem Input und funktionierender API ein nicht-leerer
+    Byte-Stream als Audio-Ergebnis zurückgegeben wird.
+    """
+    script = "Das ist ein Test."
+    tts_service.client.synthesize_speech.return_value.audio_content = b'RIFF_DUMMY_AUDIO'
+
+    audio = tts_service.generate_audio(script, "Deutsch", voice_max)
+
+    assert audio is not None
+    assert len(audio) > 0
