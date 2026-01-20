@@ -7,7 +7,7 @@ import re
 from .llm_service import LLMService
 from .tts_service import GoogleTTSService
 from .exceptions import TTSServiceError
-from Interfaces.IServices import IWorkflow
+from Interfaces.IServices import IWorkflow, ILLMService, ITTSService
 from database.database import get_db
 from database.models import (
     PodcastStimme,
@@ -56,9 +56,9 @@ class VoiceDTO:
 class PodcastWorkflow(IWorkflow):
     """Workflow: LLM → Skript → TTS → DB"""
 
-    def __init__(self):
-        self.llm_service = LLMService()
-        self.tts_service = GoogleTTSService()
+    def __init__(self, llm_service: ILLMService = None, tts_service: ITTSService = None):
+        self.llm_service = llm_service or LLMService()
+        self.tts_service = tts_service or GoogleTTSService()
 
     # --------------------------------------------------
     # 1) LLM → Skript

@@ -2,10 +2,10 @@ import os
 import logging
 from typing import Optional, Tuple, Dict, Any, List
 
-from ..Interfaces.IServices import IWorkflow
-from ..services.login_service import process_login_request, process_verify_login
-from ..services.exceptions import AuthenticationError
-from ..services.input_processing import build_source_text
+from Interfaces.IServices import IWorkflow
+from services.login_service import process_login_request, process_verify_login
+from services.exceptions import AuthenticationError
+from services.input_processing import build_source_text
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,14 @@ def get_workflow() -> IWorkflow:
     """
     global _workflow
     if _workflow is None:
-        from ..services.workflow import PodcastWorkflow
-        _workflow = PodcastWorkflow()
+        from services.workflow import PodcastWorkflow
+        from services.llm_service import LLMService
+        from services.tts_service import GoogleTTSService
+        
+        # Dependency Injection (Modularity)
+        llm = LLMService()
+        tts = GoogleTTSService()
+        _workflow = PodcastWorkflow(llm_service=llm, tts_service=tts)
     return _workflow
 
 
