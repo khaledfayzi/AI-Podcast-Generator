@@ -99,7 +99,7 @@ def verify_login_link(db_session: Any, email: str, input_token: str) -> Any:
     if not argon2.verify(input_token, user.token):
         raise AuthenticationError("Ungültiger Code.")
 
-    # One-Time-Use: Token nach erfolgreicher Verifizierung sofort löschen
+    # Token nach erfolgreicher Verifizierung sofort löschen
     repo.clear_login_token(user)
     return user
 
@@ -163,16 +163,20 @@ def process_verify_login(email: str, code: str) -> Dict[str, Any]:
     TEST_EMAIL = "test@smail.th-koeln.de"
     TEST_CODE = "testtest"
 
-    if email.lower() == TEST_EMAIL and code == TEST_CODE:
-        db = get_db()
-        try:
-            user = UserRepo(db).get_by_email(email)
-            if not user:
-                user = UserRepo(db).create_user(email)
-            db.commit()
-            return {"id": user.userId, "email": user.smailAdresse}
-        finally:
-            db.close()
+    if email.lower() == TEST_EMAIL:
+        if code == TEST_CODE:
+            db = get_db()
+            try:
+                user = UserRepo(db).get_by_email(email)
+                if not user:
+                    user = UserRepo(db).create_user(email)
+                db.commit()
+                return {"id": user.userId, "email": user.smailAdresse}
+            finally:
+                db.close()
+        else:
+            raise AuthenticationError("Ungültiger Code.")
+
 
     db = get_db()
     try:
