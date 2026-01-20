@@ -213,13 +213,13 @@ def request_login_code(email: str) -> Tuple[bool, str]:
     Requests a login code for the given email.
     """
     if not validate_smail_email(email):
-        return False, "Bitte eine gültige Smail-Adresse eingeben!"
+        return False, "### Bitte eine gültige Smail-Adresse eingeben!"
 
     try:
         process_login_request(email)
         return (
             True,
-            "Check deine Mails 👀 — dein Code ist da! Er gilt 15 Minuten. In 5 Minuten kannst du dir einen neuen schicken lassen.",
+            "### Check deine Mails 👀 — dein Code ist da! Er gilt 15 Minuten. In 5 Minuten kannst du dir einen neuen schicken lassen.",
         )
     except AuthenticationError as e:
         return False, f"Fehler: {str(e)}"
@@ -236,7 +236,7 @@ def verify_login_code(email: str, code: str) -> Tuple[bool, Optional[Dict], str]
         user_data = process_verify_login(email, code)
         return True, user_data, f"Erfolgreich eingeloggt als {user_data['email']}!"
     except AuthenticationError as e:
-        return False, None, f"Login fehlgeschlagen: {str(e)}"
+        return False, None, f"### Login fehlgeschlagen: {str(e)}"
     except Exception as e:
         logger.error(f"Login verification error: {e}")
         return False, None, f"Fehler: {str(e)}"

@@ -32,7 +32,7 @@ with gr.Blocks(
     title="KI Podcast Generator",
 ) as demo:
     # --- Global State ---
-    current_user_state = gr.State(None)
+    current_user_state = gr.BrowserState(None, storage_key="team04_podcast_user_session")
     audio_state = gr.State()
     podcast_list_state = gr.State([])
     current_podcast_state = gr.State({})
@@ -155,7 +155,7 @@ with gr.Blocks(
                 with gr.Row():
                     file_upload = gr.File(
                         label="PDF/TXT hochladen",
-                        file_types=[".pdf", ".txt", ".md"],
+                        file_types=[ ".pdf", ".txt", ".md"],
                         type="filepath",
                         scale=1,
                     )
@@ -262,7 +262,8 @@ with gr.Blocks(
                         # --- Card Events ---
                         btn_play_home.click(
                             fn=handlers.on_play_click,
-                            inputs=[gr.State(p["path"]), gr.State(p["titel"])],
+                            inputs=[gr.State(p["path"]),
+ gr.State(p["titel"])],
                             outputs=pages + [audio_player, player_title_display],
                         )
 
@@ -295,6 +296,17 @@ with gr.Blocks(
 
     # --- Skript Bearbeiten ---
     with gr.Column(visible=False) as skript_bearbeiten:
+        gr.Image(
+            logo_with_text_path,
+            show_label=False,
+            show_download_button=False,
+            show_fullscreen_button=False,
+            interactive=False,
+            height=100,
+            width=280,
+            elem_id="header-logo",
+            container=False,
+        )
         gr.Markdown("## Skript Bearbeiten")
 
         with gr.Accordion("💡 Anleitung: So gestaltest du die Sprache", open=False):
@@ -314,12 +326,22 @@ with gr.Blocks(
 
     # --- Player ---
     with gr.Column(visible=False) as audio_player_page:
+        gr.Image(
+            logo_with_text_path,
+            show_label=False,
+            show_download_button=False,
+            show_fullscreen_button=False,
+            interactive=False,
+            height=100,
+            width=280,
+            container=False,
+        )
         player_title_display = gr.Markdown(
             "## 🎙️ Unbekannter Podcast", elem_id="player_title_header"
         )
         audio_player = gr.Audio(label="Podcast", type="filepath")
         
-        with gr.Row():
+        with gr.Row(scale=2):
             btn_download_finish = gr.DownloadButton("⤓ Download", size="md", visible=False)
             btn_delete_finish = gr.Button("🗑️ Löschen", variant="stop", size="md", visible=False)
             btn_share_finish = gr.Button("📤 Teilen", size="md", visible=False)
@@ -341,15 +363,25 @@ with gr.Blocks(
 
     # --- Login Page ---
     with gr.Column(visible=True) as login_page:
-        gr.Markdown("# Login")
-        gr.Markdown(
-            "Bitte gib deine Smail-Adresse ein, um einen Login-Code zu erhalten."
-        )
-
         with gr.Row():
             with gr.Column(scale=1):
                 pass
-            with gr.Column(scale=2):
+            with gr.Column(scale=4):
+                gr.Image(
+                    logo_with_text_path,
+                    show_label=False,
+                    show_download_button=False,
+                    show_fullscreen_button=False,
+                    interactive=False,
+                    height=150,
+                    container=False,
+                )
+
+                gr.Markdown("# Login")
+                gr.Markdown(
+                    "### Bitte gib deine Smail-Adresse ein, um einen Login-Code zu erhalten."
+                )
+
                 login_email_input = gr.Textbox(
                     label="E-Mail Adresse", placeholder="dein.name@smail.th-koeln.de"
                 )
@@ -361,13 +393,24 @@ with gr.Blocks(
                     login_code_input = gr.Textbox(
                         label="8-stelliger Code", placeholder="Code aus der E-Mail"
                     )
-                    btn_verify_code = gr.Button("Anmelden")
+                    btn_verify_code = gr.Button("Anmelden", variant="primary")
 
+                btn_back_from_login = gr.Button("Zurück zum Start")
             with gr.Column(scale=1):
                 pass
 
     # --- Share Page ---
     with gr.Column(visible=False) as share_page:
+        gr.Image(
+            logo_with_text_path,
+            show_label=False,
+            show_download_button=False,
+            show_fullscreen_button=False,
+            interactive=False,
+            height=100,
+            width=330,
+            container=False,
+        )
         gr.Markdown("# Podcast Teilen!")
 
         with gr.Row():
@@ -383,7 +426,7 @@ with gr.Blocks(
                 with gr.Row():
                     share_link_input = gr.Textbox(
                         label="",
-                        placeholder="https\\...",
+                        placeholder="https\...",
                         interactive=False,
                         show_label=False,
                         max_lines=1,
@@ -404,6 +447,16 @@ with gr.Blocks(
 
     # Nutzungsbedingungen Page
     with gr.Column(visible=False) as nutzungs_page:
+        gr.Image(
+            logo_with_text_path,
+            show_label=False,
+            show_download_button=False,
+            show_fullscreen_button=False,
+            interactive=False,
+            height=100,
+            width=330,
+            container=False,
+        )
         gr.Markdown("# Nutzungsbedingungen des Podcast Generators")
 
         with gr.Row():
@@ -449,6 +502,16 @@ with gr.Blocks(
 
     # --- Über Page ---
     with gr.Column(visible=False) as uber_page:
+        gr.Image(
+            logo_with_text_path,
+            show_label=False,
+            show_download_button=False,
+            show_fullscreen_button=False,
+            interactive=False,
+            height=100,
+            width=330,
+            container=False,
+        )
         gr.Markdown("# Über den KI Podcast Generator")
 
         with gr.Row():
