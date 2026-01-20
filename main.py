@@ -27,7 +27,7 @@ def main():
             sys.path.insert(0, project_root)
 
         # Import Demo after path setup
-        from Frontend.ui import demo
+        from frontend.ui import demo
 
         logger.info("Starting Gradio UI...")
         print("Starting Podcast Generator UI...")
