@@ -36,5 +36,6 @@ numpy
 nltk
 pytest
 pytest-mock
+selenium
 #PYTHONPATH=. pytest --cov=services
 pytest-cov
