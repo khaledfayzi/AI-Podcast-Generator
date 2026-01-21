@@ -1,5 +1,4 @@
 import gradio as gr
-from gradio.themes import Ocean
 import sys
 import os
 
@@ -265,6 +264,7 @@ with gr.Blocks(
                             inputs=[gr.State(p["path"]),
  gr.State(p["titel"])],
                             outputs=pages + [audio_player, player_title_display],
+                            show_progress="hidden"
                         )
 
                         podcast_id = p.get("id")
@@ -274,12 +274,14 @@ with gr.Blocks(
                             ),
                             inputs=[],
                             outputs=[podcast_list_state],
+                            show_progress="hidden"
                         )
 
                         btn_share_home.click(
                             fn=lambda pod_data=p: handlers.handle_share_click(pod_data),
                             inputs=[],
                             outputs=pages + [share_podcast_title, share_link_input],
+                            show_progress="hidden"
                         )
 
         # --- Main List Renderer ---
@@ -555,27 +557,29 @@ with gr.Blocks(
     ]
 
     # --- Events ---
-    btn_goto_nutzungs.click(fn=lambda: handlers.navigate("nutzungs_page"), outputs=pages)
-    btn_back_from_nutzungs.click(fn=lambda: handlers.navigate("home"), outputs=pages)
+    btn_goto_nutzungs.click(fn=lambda: handlers.navigate("nutzungs_page"), outputs=pages, show_progress="hidden")
+    btn_back_from_nutzungs.click(fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden")
 
-    btn_goto_uber.click(fn=lambda: handlers.navigate("uber_page"), outputs=pages)
-    btn_back_from_uber.click(fn=lambda: handlers.navigate("home"), outputs=pages)
+    btn_goto_uber.click(fn=lambda: handlers.navigate("uber_page"), outputs=pages, show_progress="hidden")
+    btn_back_from_uber.click(fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden")
 
     # Share page events
     btn_cancel_share.click(
         fn=handlers.go_back_to_home,
         inputs=[current_user_state],
         outputs=pages + [podcast_list_state],
+        show_progress="hidden"
     )
 
     btn_copy_link.click(
-        fn=handlers.copy_share_link, inputs=[share_link_input], outputs=[share_status_msg]
+        fn=handlers.copy_share_link, inputs=[share_link_input], outputs=[share_status_msg], show_progress="hidden"
     )
 
     share_link_toggle.change(
         fn=handlers.toggle_link_visibility,
         inputs=[share_link_toggle],
         outputs=[share_status_msg],
+        show_progress="hidden"
     )
 
     btn_goto_login.click(
@@ -591,12 +595,14 @@ with gr.Blocks(
             code_input_group,
             btn_quelle,
         ],
+        show_progress="hidden"
     )
 
     btn_request_code.click(
         fn=handlers.handle_login_request,
         inputs=[login_email_input],
         outputs=[login_status_msg, code_input_group],
+        show_progress="hidden"
     )
     btn_verify_code.click(
         fn=handlers.handle_code_verify,
@@ -604,17 +610,20 @@ with gr.Blocks(
         outputs=[login_status_msg, current_user_state, btn_goto_login]
         + pages
         + [btn_quelle],
+        show_progress="hidden"
     ).then(
         fn=handlers.refresh_podcasts_for_user,
         inputs=[current_user_state],
         outputs=[podcast_list_state],
+        show_progress="hidden"
     )
 
     # Skript generieren + Cancel
     skript_task = btn_skript_generieren.click(
         fn=handlers.validate_and_show_loading,
-        inputs=[textbox_thema, source_url, file_upload],
+        inputs=[textbox_thema, source_url, file_upload, current_user_state],
         outputs=pages,
+        show_progress="hidden"
     ).then(
         fn=handlers.generate_script_wrapper,
         inputs=[
@@ -628,8 +637,10 @@ with gr.Blocks(
             source_preview,
             source_url,
             file_upload,
+            current_user_state,
         ],
         outputs=[text] + pages + [textbox_thema],
+        show_progress="hidden"
     )
 
     btn_cancel_skript.click(
@@ -637,13 +648,15 @@ with gr.Blocks(
         inputs=None,
         outputs=pages,
         cancels=skript_task,
+        show_progress="hidden"
     )
 
-    btn_zuruck_skript.click(fn=lambda: handlers.navigate("home"), outputs=pages)
+    btn_zuruck_skript.click(fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden")
 
     podcast_task = btn_podcast_generieren.click(
         fn=lambda: handlers.navigate("loading podcast"),
         outputs=pages,
+        show_progress="hidden"
     ).success(
         fn=handlers.run_audio_gen,
         inputs=[
@@ -667,6 +680,7 @@ with gr.Blocks(
             btn_share_finish,
             btn_delete_finish,
         ],
+        show_progress="hidden"
     )
 
     btn_cancel_podcast.click(
@@ -674,30 +688,35 @@ with gr.Blocks(
         inputs=None,
         outputs=pages,
         cancels=podcast_task,
+        show_progress="hidden"
     )
 
     btn_delete_finish.click(
         fn=handlers.handle_delete_finish,
         inputs=[current_podcast_state, current_user_state],
         outputs=[podcast_list_state],
-    ).then(fn=lambda: handlers.navigate("home"), outputs=pages)
+        show_progress="hidden"
+    ).then(fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden")
 
     btn_share_finish.click(
         fn=handlers.handle_share_click,
         inputs=[current_podcast_state],
         outputs=pages + [share_podcast_title, share_link_input],
+        show_progress="hidden"
     )
 
     btn_zuruck_audio.click(
         fn=handlers.navigate_home_and_refresh_podcasts,
         inputs=[current_user_state],
         outputs=pages + [podcast_list_state],
+        show_progress="hidden"
     )
 
     demo.load(
         fn=handlers.refresh_podcasts_for_user,
         inputs=[current_user_state],
         outputs=[podcast_list_state],
+        show_progress="hidden"
     )
 
 

@@ -200,7 +200,10 @@ def get_absolute_audio_path(audio_path: Optional[str]) -> Optional[str]:
 # --- Authentication ---
 def validate_smail_email(email: str) -> bool:
     """Validates that email is a valid Smail address."""
-    return "smail" in email.lower() if email else False
+    if not email:
+        return False
+    email_lower = email.lower()
+    return "smail.th-koeln" in email_lower or "th-koeln" in email_lower
 
 
 def request_login_code(email: str) -> Tuple[bool, str]:

@@ -129,10 +129,19 @@ def generate_script_wrapper(
     source_text,
     source_url,
     file_upload,
+    user_data=None,
 ):
     """
     Generates a podcast script from validated input.
     """
+    # Double check limit
+    if user_data:
+        user_id = user_data["id"]
+        podcasts = get_podcasts_for_user(user_id)
+        if len(podcasts) >= 10:
+            gr.Warning("Limit erreicht: Maximal 10 Podcasts.")
+            return ("",) + navigate("home") + (gr.update(),)
+
     has_thema = thema and thema.strip()
     has_source_url = source_url and source_url.strip()
     has_file = file_upload is not None
@@ -177,16 +186,22 @@ def generate_script_wrapper(
         return ("",) + navigate("home") + (gr.update(),)
 
 
-def validate_and_show_loading(thema, source_url, file_upload):
+def validate_and_show_loading(thema, source_url, file_upload, user_data):
     """Validates input before showing loading page. Returns navigation updates or warning."""
+    # Check podcast limit
+    user_id = user_data["id"] if user_data else None
+    if user_id:
+        podcasts = get_podcasts_for_user(user_id)
+        if len(podcasts) >= 10:
+             gr.Warning("Du hast das Limit von 10 Podcasts erreicht. Bitte lösche alte Podcasts.")
+             return navigate("home")
+
     has_thema = thema and thema.strip()
     has_url = source_url and source_url.strip()
     has_file = file_upload is not None
 
     if not (has_thema or has_url or has_file):
-        gr.Warning(
-            "Bitte gib mindestens ein Thema an, lade eine Datei hoch oder füge eine URL ein!"
-        )
+        gr.Warning("Bitte gib mindestens ein Thema an, lade eine Datei hoch oder füge eine URL ein!")
         return navigate("home")
 
     return navigate("loading script")

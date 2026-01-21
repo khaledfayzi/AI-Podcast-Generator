@@ -1,4 +1,7 @@
 from abc import ABC, abstractmethod
+
+from pydub import AudioSegment
+
 from database.models import PodcastStimme
 from typing import List, Tuple, Dict, Any
 
@@ -17,8 +20,8 @@ class ITTSService(ABC):
 
     @abstractmethod
     def generate_audio(
-        self, skript: str, sprache:str , hauptstimme: PodcastStimme, zweitstimme: PodcastStimme = None
-    ) -> str | None:
+        self, skript_text: str, sprache:str , primary_voice: PodcastStimme, secondary_voice: PodcastStimme = None
+    ) -> AudioSegment | None:
         """
         Muss von der Unterklasse implementiert werden.
         """
