@@ -71,4 +71,4 @@ def test_workflow_run_pipeline_success(
     mock_tts.generate_audio.assert_called_once()
     MockTextRepo.return_value.add.assert_called_once()
     
-    assert result_path == "Output/podcast_google_1234.mp3"
+    assert result_path == os.path.join("Output", "podcast_google_1234.mp3")
