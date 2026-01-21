@@ -68,13 +68,12 @@ def workflow():
     """
     Initialisiert den Workflow isoliert:
     - keine echte DB
-    - kein echtes LLM
+    - kein echtes LLM (kein GEMINI_API_KEY nötig)
     - kein echtes TTS
     """
-    wf = workflow_module.PodcastWorkflow()
-    wf.llm_service = MagicMock()
-    wf.tts_service = MagicMock()
-    return wf
+    mock_llm = MagicMock()
+    mock_tts = MagicMock()
+    return workflow_module.PodcastWorkflow(llm_service=mock_llm, tts_service=mock_tts)
 
 
 # ------------------------------------------------------------
@@ -85,7 +84,7 @@ def test_skripterstellung_ein_sprecher(workflow):
     """
     Prüft die Skripterstellung mit nur einem Sprecher.
     """
-    with patch.object(workflow, "_generate_script", return_value="Max: Hallo.") as m:
+    with patch.object(workflow, "generate_script", return_value="Max: Hallo.") as m:
         text = workflow.generate_script_step(
             "Test", 2, "Deutsch", "Max", "Keine"
         )
@@ -103,7 +102,7 @@ def test_skripterstellung_zwei_sprecher(workflow):
     """
     with patch.object(
             workflow,
-            "_generate_script",
+            "generate_script",
             return_value="Max: Hi\nSarah: Hallo."
     ) as m:
         workflow.generate_script_step(
@@ -183,7 +182,7 @@ def test_podcast_xml_zeichen_loeschen_erfolgreich(workflow):
         "Max: Hallo <break/> **etwas** [pause: 1s]"
     )
 
-    out = workflow._generate_script(
+    out = workflow.generate_script(
         thema="Podcast",
         sprache="Deutsch",
         dauer=5,
