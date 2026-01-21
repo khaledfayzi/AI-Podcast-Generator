@@ -137,7 +137,7 @@ def gradio_server(mock_controller):
 @pytest.fixture(scope="function")
 def driver():
     chrome_options = Options()
-    # chrome_options.add_argument("--headless") # Uncomment for headless execution
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
