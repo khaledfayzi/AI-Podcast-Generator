@@ -5,7 +5,6 @@ import shutil
 import re
 from datetime import datetime
 
-# Fix imports to ensure team04 module is found
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from .controller import (
@@ -34,9 +33,8 @@ PAGE_NAMES = [
     "share_page",
 ]
 
-# --- Helper Functions ---
 
-def _get_roles(speaker: int) -> list:
+def get_roles(speaker: int) -> list:
     """Hilfsmethode um die verfügbaren Rollen im Dropdown anzeigen"""
     if speaker == 1:
         return [
@@ -50,7 +48,7 @@ def _get_roles(speaker: int) -> list:
     return []
 
 
-def _get_matching_role(speaker2, role1) -> str:
+def get_matching_role(speaker2, role1) -> str:
     """Bestimmt die Rolle des zweiten Sprechers basierend auf der Rolle des ersten."""
     if not speaker2 or speaker2 == "Keine":
         return "Keine"
@@ -370,7 +368,7 @@ def copy_share_link(share_link):
 def toggle_link_visibility(is_public):
     """Toggles link visibility between public/private."""
     status = "öffentlich" if is_public else "privat"
-    return gr.update(value=f"Link ist jetzt {status}")
+    return gr.update(value=f"Link ist jetzt {status}", visible=True)
 
 
 def go_back_to_home(user_data):

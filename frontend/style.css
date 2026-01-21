@@ -196,3 +196,9 @@ footer,
     overflow-y: hidden !important;
     resize: none !important;
 }
+
+/* Remove scrollbar from status message */
+#share_status_msg, 
+#share_status_msg * {
+    overflow: hidden !important;
+}
