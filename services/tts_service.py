@@ -41,7 +41,7 @@ class GoogleTTSService(ITTSService):
         script_text: str,
         sprache: str,
         primary_voice: PodcastStimme,
-        secondary_voice: PodcastStimme = None,
+        secondary_voice: PodcastStimme | None = None,
     ) -> AudioSegment | None:
         """
         Wandelt ein Skript in ein Audio-Objekt um.

@@ -210,8 +210,8 @@ class PodcastStimme(Base):
     stimmeId = Column(Integer, primary_key=True, autoincrement=True)
 
     ui_slot = Column(Integer, default=0)
-    name = Column(String(50), nullable=False, unique=True)  # z.B. "Hans"
-    ttsVoice_de = Column("tts_voice_de", String(50), nullable=False)
-    ttsVoice_en = Column("tts_voice_en", String(50), nullable=False)
+    name: str = Column(String(50), nullable=False, unique=True)  # type: ignore # z.B. "Hans"
+    ttsVoice_de: str = Column("tts_voice_de", String(50), nullable=False)  # type: ignore
+    ttsVoice_en: str = Column("tts_voice_en", String(50), nullable=False)  # type: ignore
 
-    geschlecht = Column(String(50), nullable=False)  # "m" oder "w"
+    geschlecht: str = Column(String(50), nullable=False)  # type: ignore # "m" oder "w"
