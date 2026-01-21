@@ -334,11 +334,14 @@ def navigate_home_and_refresh_podcasts(user_data):
 
 def handle_share_click(podcast_data):
     """Opens share page with podcast data."""
-    if not podcast_data:
-        return navigate("home")
+    titel = podcast_data.get("titel", "Podcast")
+    path = podcast_data.get("path", "")
+    filename = os.path.basename(path)
+    share_link = f"https://podcast-ai.dedyn.io/share/{filename}"
+
     return navigate("share_page") + (
-        podcast_data.get("titel", "Podcast"),
-        gr.update(value=""),
+        gr.update(value=f"### Teile '{titel}' mit anderen"),
+        gr.update(value=share_link),
     )
 
 

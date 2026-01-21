@@ -116,7 +116,7 @@ def test_podcast_repository(db_session):
     db_session.add(Konvertierungsauftrag(textId=text.textId, modellId=tts.modellId, gewuenschteDauer=10, status=AuftragsStatus.ABGESCHLOSSEN))
     db_session.commit()
     job = db_session.query(Konvertierungsauftrag).first()
-    
+
     repo = PodcastRepo(db_session)
     p = Podcast(
         auftragId=job.auftragId,
@@ -136,7 +136,7 @@ def test_podcast_repository(db_session):
         titel="Beta Podcast",
         realdauer=5,
         dateipfadAudio="/tmp/b.mp3",
-        erstelldatum=date(2023, 2, 1) # Newer
+        erstelldatum=date(2023, 2, 1)
     )
     repo.add(p2)
     db_session.commit()
