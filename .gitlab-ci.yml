@@ -1,9 +1,12 @@
 variables:
   UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  CHROME_BIN: "/usr/bin/chromium"
+  CHROMEDRIVER_PATH: "/usr/bin/chromedriver"
 
 test_unit:
   image: python:3.11-slim
   before_script:
+    - apt-get update && apt-get install -y chromium chromium-driver
     - pip install uv
   script:
     - uv venv .venv
