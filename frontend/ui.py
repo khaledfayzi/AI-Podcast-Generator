@@ -92,6 +92,7 @@ with gr.Blocks(
                         value="Kurz (~5min)",
                         interactive=True,
                         scale=1,
+                        allow_custom_value=False,
                     )
                     dropdown_sprache = gr.Dropdown(
                         choices=["Deutsch", "English"],
@@ -99,6 +100,7 @@ with gr.Blocks(
                         value="Deutsch",
                         interactive=True,
                         scale=1,
+                        allow_custom_value=False,
                     )
 
                 # Sprecher 1
@@ -113,12 +115,14 @@ with gr.Blocks(
                         ),
                         interactive=True,
                         scale=1,
+                        allow_custom_value=False,
                     )
                     dropdown_role1 = gr.Dropdown(
-                        choices=handlers._get_roles(1),
+                        choices=handlers.get_roles(1),
                         label="Rolle von Sprecher 1",
                         value="Moderator",
                         scale=1,
+                        allow_custom_value=False,
                     )
 
                 # Sprecher 2
@@ -129,16 +133,18 @@ with gr.Blocks(
                         value="Keine",
                         interactive=True,
                         scale=1,
+                        allow_custom_value=False,
                     )
                     dropdown_role2 = gr.Dropdown(
-                        choices=handlers._get_roles(2) + ["Keine"],
+                        choices=handlers.get_roles(2) + ["Keine"],
                         label="Rolle von Sprecher 2",
                         value="Keine",
                         scale=1,
+                        allow_custom_value=False,
                     )
 
                 dropdown_speaker2.change(
-                    fn=handlers._get_matching_role,
+                    fn=handlers.get_matching_role,
                     inputs=[dropdown_speaker2, dropdown_role1],
                     outputs=dropdown_role2,
                 )
@@ -441,7 +447,7 @@ with gr.Blocks(
                     label="Link öffentlich machen", value=False
                 )
 
-                share_status_msg = gr.Markdown("", visible=False)
+                share_status_msg = gr.Markdown("", visible=False, elem_id="share_status_msg")
 
                 btn_cancel_share = gr.Button("Zurück")
             with gr.Column(scale=1):
@@ -572,7 +578,11 @@ with gr.Blocks(
     )
 
     btn_copy_link.click(
-        fn=handlers.copy_share_link, inputs=[share_link_input], outputs=[share_status_msg], show_progress="hidden"
+        fn=handlers.copy_share_link,
+        inputs=[share_link_input],
+        outputs=[share_status_msg],
+        js="(link) => { if (link) { navigator.clipboard.writeText(link); } }",
+        show_progress="hidden"
     )
 
     share_link_toggle.change(
