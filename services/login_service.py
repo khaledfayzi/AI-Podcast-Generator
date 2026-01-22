@@ -129,7 +129,7 @@ def process_login_request(email: str) -> str:
             if not user:
                 user = UserRepo(db).create_user(email)
             db.commit()
-            return {"id": user.userId, "email": user.smailAdresse}
+            return {"id": user.userId, "email": email}
         finally:
             db.close()
 
@@ -171,7 +171,7 @@ def process_verify_login(email: str, code: str) -> Dict[str, Any]:
                 if not user:
                     user = UserRepo(db).create_user(email)
                 db.commit()
-                return {"id": user.userId, "email": user.smailAdresse}
+                return {"id": user.userId, "email": email}
             finally:
                 db.close()
         else:
@@ -182,7 +182,7 @@ def process_verify_login(email: str, code: str) -> Dict[str, Any]:
     try:
         user = verify_login_link(db, email, code)
         db.commit()
-        return {"id": user.userId, "email": user.smailAdresse}
+        return {"id": user.userId, "email": email}
     except Exception:
         db.rollback()
         raise
