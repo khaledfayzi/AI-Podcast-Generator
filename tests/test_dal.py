@@ -8,6 +8,7 @@ from repositories.job_repo import JobRepo
 from repositories.podcast_repo import PodcastRepo
 from repositories.text_repo import TextRepo
 from repositories.voice_repo import VoiceRepo
+import hashlib
 
 @pytest.fixture
 def db_session():
@@ -37,7 +38,8 @@ def test_user_repository(db_session):
     
     fetched = repo.get_by_email("test@example.com")
     assert fetched is not None
-    assert fetched.smailAdresse == "test@example.com"
+    expected_hash = hashlib.sha256("test@example.com".encode("utf-8")).hexdigest()
+    assert fetched.smailAdresse == expected_hash
     assert fetched.status == "neu"
     
     assert repo.get_by_email("wrong@example.com") is None
