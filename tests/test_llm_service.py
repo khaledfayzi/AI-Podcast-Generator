@@ -4,10 +4,12 @@ from requests.exceptions import RequestException
 from services.exceptions import LLMServiceError
 from services.llm_service import LLMService
 
+
 @pytest.fixture(autouse=True)
 def mock_env(monkeypatch):
     """Setzt standardmäßig einen Dummy-API-Key, damit Tests nicht crashen."""
     monkeypatch.setenv("GEMINI_API_KEY", "dummy_key")
+
 
 BASE_CONFIG = {
     "dauer": 2,

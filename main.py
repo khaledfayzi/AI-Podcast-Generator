@@ -37,7 +37,11 @@ def main():
         server_port = int(os.getenv("PORT", "7860"))
 
         demo.queue()
-        demo.launch(favicon_path="frontend/logo/logo.ico",server_name=server_name, server_port=server_port)
+        demo.launch(
+            favicon_path="frontend/logo/logo.ico",
+            server_name=server_name,
+            server_port=server_port,
+        )
 
     except Exception as e:
         logger.error(f"Failed to start UI: {e}", exc_info=True)

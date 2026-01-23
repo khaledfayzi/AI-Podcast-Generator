@@ -168,7 +168,6 @@ class Workflow:
         speakers: int = 1,
         roles: dict = None,
     ) -> str:
-
         session = get_db()
         audio_path = None
 

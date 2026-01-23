@@ -1,6 +1,7 @@
-import gradio as gr
-import sys
 import os
+import sys
+
+import gradio as gr
 
 # Fix damit die Imports aus team04 klappen
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -9,7 +10,9 @@ css_path = os.path.join(os.path.dirname(__file__), "style.css")
 with open(css_path, "r", encoding="utf-8") as f:
     css_content = f.read()
 
-logo_with_text_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "logo", "logo_mit_text.png"))
+logo_with_text_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "logo", "logo_mit_text.png")
+)
 
 try:
     from . import ui_handlers as handlers
@@ -17,8 +20,8 @@ except ImportError:
     import ui_handlers as handlers
 
 from .controller import (
-    get_available_voices,
     get_absolute_audio_path,
+    get_available_voices,
 )
 
 # Get available voices on startup
@@ -31,7 +34,9 @@ with gr.Blocks(
     title="KI Podcast Generator",
 ) as demo:
     # --- Global State ---
-    current_user_state = gr.BrowserState(None, storage_key="team04_podcast_user_session")
+    current_user_state = gr.BrowserState(
+        None, storage_key="team04_podcast_user_session"
+    )
     audio_state = gr.State()
     podcast_list_state = gr.State([])
     current_podcast_state = gr.State({})
@@ -160,7 +165,7 @@ with gr.Blocks(
                 with gr.Row():
                     file_upload = gr.File(
                         label="PDF/TXT hochladen",
-                        file_types=[ ".pdf", ".txt", ".md"],
+                        file_types=[".pdf", ".txt", ".md"],
                         type="filepath",
                         scale=1,
                     )
@@ -267,27 +272,25 @@ with gr.Blocks(
                         # --- Card Events ---
                         btn_play_home.click(
                             fn=handlers.on_play_click,
-                            inputs=[gr.State(p["path"]),
- gr.State(p["titel"])],
+                            inputs=[gr.State(p["path"]), gr.State(p["titel"])],
                             outputs=pages + [audio_player, player_title_display],
-                            show_progress="hidden"
+                            show_progress="hidden",
                         )
 
                         podcast_id = p.get("id")
                         btn_delete_home.click(
-                            fn=lambda pid=podcast_id, ud=user_data: handlers.delete_podcast_handler(
-                                pid, ud
-                            ),
+                            fn=lambda pid=podcast_id,
+                            ud=user_data: handlers.delete_podcast_handler(pid, ud),
                             inputs=[],
                             outputs=[podcast_list_state],
-                            show_progress="hidden"
+                            show_progress="hidden",
                         )
 
                         btn_share_home.click(
                             fn=lambda pod_data=p: handlers.handle_share_click(pod_data),
                             inputs=[],
                             outputs=pages + [share_podcast_title, share_link_input],
-                            show_progress="hidden"
+                            show_progress="hidden",
                         )
 
         # --- Main List Renderer ---
@@ -348,10 +351,14 @@ with gr.Blocks(
             "## 🎙️ Unbekannter Podcast", elem_id="player_title_header"
         )
         audio_player = gr.Audio(label="Podcast", type="filepath")
-        
+
         with gr.Row(scale=2):
-            btn_download_finish = gr.DownloadButton("⤓ Download", size="md", visible=False)
-            btn_delete_finish = gr.Button("🗑️ Löschen", variant="stop", size="md", visible=False)
+            btn_download_finish = gr.DownloadButton(
+                "⤓ Download", size="md", visible=False
+            )
+            btn_delete_finish = gr.Button(
+                "🗑️ Löschen", variant="stop", size="md", visible=False
+            )
             btn_share_finish = gr.Button("📤 Teilen", size="md", visible=False)
 
         btn_zuruck_audio = gr.Button("Zurück zur Startseite")
@@ -366,7 +373,11 @@ with gr.Blocks(
         btn_cancel_skript = gr.Button("Abbrechen", variant="secondary")
 
     with gr.Column(visible=False) as loading_page_podcast:
-        gr.HTML(handlers.get_loader_html("Podcast wird generiert, das kann einen Moment dauern."))
+        gr.HTML(
+            handlers.get_loader_html(
+                "Podcast wird generiert, das kann einen Moment dauern."
+            )
+        )
         btn_cancel_podcast = gr.Button("Abbrechen", variant="secondary")
 
     # --- Login Page ---
@@ -434,7 +445,7 @@ with gr.Blocks(
                 with gr.Row():
                     share_link_input = gr.Textbox(
                         label="",
-                        placeholder="https\...",
+                        placeholder="https:\\...",
                         interactive=False,
                         show_label=False,
                         max_lines=1,
@@ -447,7 +458,9 @@ with gr.Blocks(
                     label="Link öffentlich machen", value=False
                 )
 
-                share_status_msg = gr.Markdown("", visible=False, elem_id="share_status_msg")
+                share_status_msg = gr.Markdown(
+                    "", visible=False, elem_id="share_status_msg"
+                )
 
                 btn_cancel_share = gr.Button("Zurück")
             with gr.Column(scale=1):
@@ -528,7 +541,7 @@ with gr.Blocks(
             with gr.Column(scale=3):
                 gr.Markdown("""
                 ## 🎙️ Willkommen beim KI Podcast Generator!
-                
+
                 Über den KI Podcast Generator
                 Unsere Mission ist es, die Podcast-Erstellung für jeden zugänglich zu
                 machen. Mit modernster KI-Technologie verwandeln wir deine Ideen in
@@ -540,8 +553,8 @@ with gr.Blocks(
                     Text-to-Speech (TTS) Technologie mit natürlich klingenden Stimmen
                     Emotionale Intelligenz für ausdrucksstarke Sprachausgabe
                     Automatische PDF- und Textanalyse
-                
-                
+
+
                 ---
                 *Version 1.0 | Team04 | TH Köln*
                 """)
@@ -563,18 +576,28 @@ with gr.Blocks(
     ]
 
     # --- Events ---
-    btn_goto_nutzungs.click(fn=lambda: handlers.navigate("nutzungs_page"), outputs=pages, show_progress="hidden")
-    btn_back_from_nutzungs.click(fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden")
+    btn_goto_nutzungs.click(
+        fn=lambda: handlers.navigate("nutzungs_page"),
+        outputs=pages,
+        show_progress="hidden",
+    )
+    btn_back_from_nutzungs.click(
+        fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden"
+    )
 
-    btn_goto_uber.click(fn=lambda: handlers.navigate("uber_page"), outputs=pages, show_progress="hidden")
-    btn_back_from_uber.click(fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden")
+    btn_goto_uber.click(
+        fn=lambda: handlers.navigate("uber_page"), outputs=pages, show_progress="hidden"
+    )
+    btn_back_from_uber.click(
+        fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden"
+    )
 
     # Share page events
     btn_cancel_share.click(
         fn=handlers.go_back_to_home,
         inputs=[current_user_state],
         outputs=pages + [podcast_list_state],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     btn_copy_link.click(
@@ -582,14 +605,14 @@ with gr.Blocks(
         inputs=[share_link_input],
         outputs=[share_status_msg],
         js="(link) => { if (link) { navigator.clipboard.writeText(link); } }",
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     share_link_toggle.change(
         fn=handlers.toggle_link_visibility,
         inputs=[share_link_toggle],
         outputs=[share_status_msg],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     btn_goto_login.click(
@@ -605,14 +628,14 @@ with gr.Blocks(
             code_input_group,
             btn_quelle,
         ],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     btn_request_code.click(
         fn=handlers.handle_login_request,
         inputs=[login_email_input],
         outputs=[login_status_msg, code_input_group],
-        show_progress="hidden"
+        show_progress="hidden",
     )
     btn_verify_code.click(
         fn=handlers.handle_code_verify,
@@ -620,12 +643,12 @@ with gr.Blocks(
         outputs=[login_status_msg, current_user_state, btn_goto_login]
         + pages
         + [btn_quelle],
-        show_progress="hidden"
+        show_progress="hidden",
     ).then(
         fn=handlers.refresh_podcasts_for_user,
         inputs=[current_user_state],
         outputs=[podcast_list_state],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     # Skript generieren + Cancel
@@ -633,7 +656,7 @@ with gr.Blocks(
         fn=handlers.validate_and_show_loading,
         inputs=[textbox_thema, source_url, file_upload, current_user_state],
         outputs=pages,
-        show_progress="hidden"
+        show_progress="hidden",
     ).then(
         fn=handlers.generate_script_wrapper,
         inputs=[
@@ -650,7 +673,7 @@ with gr.Blocks(
             current_user_state,
         ],
         outputs=[text] + pages + [textbox_thema],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     btn_cancel_skript.click(
@@ -658,15 +681,17 @@ with gr.Blocks(
         inputs=None,
         outputs=pages,
         cancels=skript_task,
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
-    btn_zuruck_skript.click(fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden")
+    btn_zuruck_skript.click(
+        fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden"
+    )
 
     podcast_task = btn_podcast_generieren.click(
         fn=lambda: handlers.navigate("loading podcast"),
         outputs=pages,
-        show_progress="hidden"
+        show_progress="hidden",
     ).success(
         fn=handlers.run_audio_gen,
         inputs=[
@@ -690,7 +715,7 @@ with gr.Blocks(
             btn_share_finish,
             btn_delete_finish,
         ],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     btn_cancel_podcast.click(
@@ -698,35 +723,35 @@ with gr.Blocks(
         inputs=None,
         outputs=pages,
         cancels=podcast_task,
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     btn_delete_finish.click(
         fn=handlers.handle_delete_finish,
         inputs=[current_podcast_state, current_user_state],
         outputs=[podcast_list_state],
-        show_progress="hidden"
+        show_progress="hidden",
     ).then(fn=lambda: handlers.navigate("home"), outputs=pages, show_progress="hidden")
 
     btn_share_finish.click(
         fn=handlers.handle_share_click,
         inputs=[current_podcast_state],
         outputs=pages + [share_podcast_title, share_link_input],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     btn_zuruck_audio.click(
         fn=handlers.navigate_home_and_refresh_podcasts,
         inputs=[current_user_state],
         outputs=pages + [podcast_list_state],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
     demo.load(
         fn=handlers.refresh_podcasts_for_user,
         inputs=[current_user_state],
         outputs=[podcast_list_state],
-        show_progress="hidden"
+        show_progress="hidden",
     )
 
 

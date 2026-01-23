@@ -1,16 +1,17 @@
-import nltk
-import logging
 import io
-import time
+import logging
 import re
+import time
 
+import nltk
 from dotenv import load_dotenv
-from google.cloud import texttospeech
 from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
+from google.cloud import texttospeech
 from pydub import AudioSegment
 
-from interfaces.iservices import ITTSService
 from database.models import PodcastStimme
+from interfaces.iservices import ITTSService
+
 from .exceptions import TTSServiceError
 
 load_dotenv()

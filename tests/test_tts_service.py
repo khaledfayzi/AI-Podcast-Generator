@@ -28,7 +28,11 @@ def voice_max():
     """
     Erstellt ein Mock-Objekt für einen männlichen Sprecher.
     """
-    return PodcastStimme(name="Max", ttsVoice_de="de-DE-Chirp3-HD-Achird", ttsVoice_en="en-US-Chirp3-HD-Achird")
+    return PodcastStimme(
+        name="Max",
+        ttsVoice_de="de-DE-Chirp3-HD-Achird",
+        ttsVoice_en="en-US-Chirp3-HD-Achird",
+    )
 
 
 @pytest.fixture
@@ -36,7 +40,11 @@ def voice_sara():
     """
     Erstellt ein Mock-Objekt für eine weibliche Sprecherin.
     """
-    return PodcastStimme(name="Sara", ttsVoice_de="de-DE-Chirp3-HD-Erinome", ttsVoice_en="en-US-Chirp3-HD-Erinome")
+    return PodcastStimme(
+        name="Sara",
+        ttsVoice_de="de-DE-Chirp3-HD-Erinome",
+        ttsVoice_en="en-US-Chirp3-HD-Erinome",
+    )
 
 
 def test_validierung_ssml_Transformation(tts_service):
@@ -49,17 +57,17 @@ def test_validierung_ssml_Transformation(tts_service):
     """
     input_text = "Hallo **Welt**, das ist *ein Test*. [pause: 500ms] [spell: ABC] [year: 2024] [dur: 2m]."
     expected_parts = [
-        '<speak>',
+        "<speak>",
         '<emphasis level="strong">Welt</emphasis>',
         '<emphasis level="moderate">ein Test</emphasis>',
         '<break time="500ms"/>',
         '<say-as interpret-as="characters">ABC</say-as>',
         '<say-as interpret-as="date" format="y">2024</say-as>',
         '<say-as interpret-as="duration">2m</say-as>',
-        '</speak>'
+        "</speak>",
     ]
 
-    ssml = tts_service._prepare_final_ssml(input_text, nltk_lang='german')
+    ssml = tts_service._prepare_final_ssml(input_text, nltk_lang="german")
 
     for part in expected_parts:
         assert part in ssml
@@ -79,15 +87,17 @@ def test_sprecherwechsel(tts_service, voice_max, voice_sara):
     Max: Mir geht es gut.
     """
 
-    tts_service.client.synthesize_speech.return_value.audio_content = b'RIFF_DUMMY_AUDIO'
+    tts_service.client.synthesize_speech.return_value.audio_content = (
+        b"RIFF_DUMMY_AUDIO"
+    )
 
     tts_service.generate_audio(script, "Deutsch", voice_max, voice_sara)
 
     calls = tts_service.client.synthesize_speech.call_args_list
     assert len(calls) >= 3
-    assert calls[0].kwargs['voice'].name == "de-DE-Chirp3-HD-Achird"
-    assert calls[1].kwargs['voice'].name == "de-DE-Chirp3-HD-Erinome"
-    assert calls[2].kwargs['voice'].name == "de-DE-Chirp3-HD-Achird"
+    assert calls[0].kwargs["voice"].name == "de-DE-Chirp3-HD-Achird"
+    assert calls[1].kwargs["voice"].name == "de-DE-Chirp3-HD-Erinome"
+    assert calls[2].kwargs["voice"].name == "de-DE-Chirp3-HD-Achird"
 
 
 def test_smart_chunking(tts_service):
@@ -100,7 +110,7 @@ def test_smart_chunking(tts_service):
     sentence = "Dies ist ein sehr langer Satz, der wiederholt wird. "
     long_text = sentence * 100
 
-    chunks = tts_service._text_splitter(long_text, max_chars=200, nltk_lang='german')
+    chunks = tts_service._text_splitter(long_text, max_chars=200, nltk_lang="german")
 
     assert len(chunks) > 1
     for chunk in chunks:
@@ -122,7 +132,7 @@ def test_retry_logic(tts_service, voice_max):
     tts_service.client.synthesize_speech.side_effect = [
         ResourceExhausted("Quota exceeded"),
         ServiceUnavailable("Service down"),
-        MagicMock(audio_content=b'RIFF_DUMMY_AUDIO')
+        MagicMock(audio_content=b"RIFF_DUMMY_AUDIO"),
     ]
 
     with patch("time.sleep"):
@@ -139,7 +149,9 @@ def test_audio_generation_success(tts_service, voice_max):
     Byte-Stream als Audio-Ergebnis zurückgegeben wird.
     """
     script = "Das ist ein Test."
-    tts_service.client.synthesize_speech.return_value.audio_content = b'RIFF_DUMMY_AUDIO'
+    tts_service.client.synthesize_speech.return_value.audio_content = (
+        b"RIFF_DUMMY_AUDIO"
+    )
 
     audio = tts_service.generate_audio(script, "Deutsch", voice_max)
 

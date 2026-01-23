@@ -177,7 +177,6 @@ def process_verify_login(email: str, code: str) -> Dict[str, Any]:
         else:
             raise AuthenticationError("Ungültiger Code.")
 
-
     db = get_db()
     try:
         user = verify_login_link(db, email, code)

@@ -10,6 +10,7 @@ from database.models import PodcastStimme
 # Fixtures
 # ------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_session():
     """
@@ -80,14 +81,13 @@ def workflow():
 # Tests
 # ------------------------------------------------------------
 
+
 def test_skripterstellung_ein_sprecher(workflow):
     """
     Prüft die Skripterstellung mit nur einem Sprecher.
     """
     with patch.object(workflow, "generate_script", return_value="Max: Hallo.") as m:
-        text = workflow.generate_script_step(
-            "Test", 2, "Deutsch", "Max", "Keine"
-        )
+        text = workflow.generate_script_step("Test", 2, "Deutsch", "Max", "Keine")
 
     assert "Max:" in text
 
@@ -101,13 +101,9 @@ def test_skripterstellung_zwei_sprecher(workflow):
     Prüft, ob bei zwei Sprechern speakers korrekt auf 2 gesetzt wird.
     """
     with patch.object(
-            workflow,
-            "generate_script",
-            return_value="Max: Hi\nSarah: Hallo."
+        workflow, "generate_script", return_value="Max: Hi\nSarah: Hallo."
     ) as m:
-        workflow.generate_script_step(
-            "Test", 2, "Deutsch", "Max", "Sarah"
-        )
+        workflow.generate_script_step("Test", 2, "Deutsch", "Max", "Sarah")
 
     _, kwargs = m.call_args
     assert kwargs["speakers"] == 2
@@ -119,18 +115,15 @@ def test_audiogenerierung_erfolgreich(workflow, mock_session, voice_max, voice_s
     Erfolgsfall der Audiogenerierung.
     """
     voice_repo = MagicMock()
-    voice_repo.get_voices_by_names.side_effect = [
-        [voice_max],
-        [voice_sarah]
-    ]
+    voice_repo.get_voices_by_names.side_effect = [[voice_max], [voice_sarah]]
 
-    with patch.object(workflow_module, "VoiceRepo", return_value=voice_repo), \
-            patch.object(workflow, "_generate_audio", return_value="Output/test.mp3"), \
-            patch.object(workflow, "_save_metadata"):
-
+    with (
+        patch.object(workflow_module, "VoiceRepo", return_value=voice_repo),
+        patch.object(workflow, "_generate_audio", return_value="Output/test.mp3"),
+        patch.object(workflow, "_save_metadata"),
+    ):
         path = workflow.generate_audio_step(
-            "Max: Hallo\nSarah: Hi",
-            "Thema", 2, "Deutsch", "Max", "Sarah"
+            "Max: Hallo\nSarah: Hi", "Thema", 2, "Deutsch", "Max", "Sarah"
         )
 
     assert path == "Output/test.mp3"
@@ -144,13 +137,13 @@ def test_audiogenerierung_tts_fehler(workflow, mock_session, voice_max):
     voice_repo = MagicMock()
     voice_repo.get_voices_by_names.return_value = [voice_max]
 
-    with patch.object(workflow_module, "VoiceRepo", return_value=voice_repo), \
-            patch.object(workflow, "_generate_audio", side_effect=TTSServiceError("fail")):
-
+    with (
+        patch.object(workflow_module, "VoiceRepo", return_value=voice_repo),
+        patch.object(workflow, "_generate_audio", side_effect=TTSServiceError("fail")),
+    ):
         with pytest.raises(TTSServiceError):
             workflow.generate_audio_step(
-                "Max: Hallo",
-                "Thema", 1, "Deutsch", "Max", "Keine"
+                "Max: Hallo", "Thema", 1, "Deutsch", "Max", "Keine"
             )
 
     mock_session.close.assert_called_once()
@@ -190,7 +183,7 @@ def test_podcast_xml_zeichen_loeschen_erfolgreich(workflow):
         roles=None,
         hauptstimme="Max",
         zweitstimme=None,
-        source_text=None
+        source_text=None,
     )
 
     assert "<break/>" not in out
@@ -199,17 +192,19 @@ def test_podcast_xml_zeichen_loeschen_erfolgreich(workflow):
 
 
 def test_generate_audio_passing_roles_and_stimmen_objekte(
-        workflow, mock_session, voice_max, voice_sarah):
+    workflow, mock_session, voice_max, voice_sarah
+):
     """
     Prüft, ob Rollen und Voice-Objekte korrekt an _save_metadata übergeben werden.
     """
     voice_repo = MagicMock()
     voice_repo.get_voices_by_names.side_effect = [[voice_max], [voice_sarah]]
 
-    with patch.object(workflow_module, "VoiceRepo", return_value=voice_repo), \
-            patch.object(workflow, "_generate_audio", return_value="Output/test.mp3"), \
-            patch.object(workflow, "_save_metadata") as save_meta:
-
+    with (
+        patch.object(workflow_module, "VoiceRepo", return_value=voice_repo),
+        patch.object(workflow, "_generate_audio", return_value="Output/test.mp3"),
+        patch.object(workflow, "_save_metadata") as save_meta,
+    ):
         out_path = workflow.generate_audio_step(
             script_text="Max: Hallo\nSarah: Hi",
             thema="Thema",

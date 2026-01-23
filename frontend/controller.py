@@ -25,7 +25,7 @@ def get_workflow() -> IWorkflow:
         from services.workflow import PodcastWorkflow
         from services.llm_service import LLMService
         from services.tts_service import GoogleTTSService
-        
+
         # Dependency Injection (Modularity)
         llm = LLMService()
         tts = GoogleTTSService()

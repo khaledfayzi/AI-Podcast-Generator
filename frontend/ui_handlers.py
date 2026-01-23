@@ -92,6 +92,7 @@ def get_loader_html(message):
     </style>
     """
 
+
 def navigate(target):
     """Schaltet die Sichtbarkeit der Seiten um."""
     results = []
@@ -104,6 +105,7 @@ def navigate(target):
 
 
 # --- Event Handlers ---
+
 
 def on_play_click(audio_path, podcast_title):
     """Startet den Audio-Player mit dem richtigen File."""
@@ -191,15 +193,19 @@ def validate_and_show_loading(thema, source_url, file_upload, user_data):
     if user_id:
         podcasts = get_podcasts_for_user(user_id)
         if len(podcasts) >= 10:
-             gr.Warning("Du hast das Limit von 10 Podcasts erreicht. Bitte lösche alte Podcasts.")
-             return navigate("home")
+            gr.Warning(
+                "Du hast das Limit von 10 Podcasts erreicht. Bitte lösche alte Podcasts."
+            )
+            return navigate("home")
 
     has_thema = thema and thema.strip()
     has_url = source_url and source_url.strip()
     has_file = file_upload is not None
 
     if not (has_thema or has_url or has_file):
-        gr.Warning("Bitte gib mindestens ein Thema an, lade eine Datei hoch oder füge eine URL ein!")
+        gr.Warning(
+            "Bitte gib mindestens ein Thema an, lade eine Datei hoch oder füge eine URL ein!"
+        )
         return navigate("home")
 
     return navigate("loading script")
@@ -246,11 +252,11 @@ def run_audio_gen(script_text, thema, dauer, sprache, s1, s2, r1, r2, user_data)
         safe_thema = re.sub(r'[\\/*?:"<>|]', "", thema).replace(" ", "_")
         date_str = datetime.now().strftime("%Y-%m-%d")
         download_filename = f"Podcast-{safe_thema}-{date_str}.mp3"
-        
+
         abs_audio_path = get_absolute_audio_path(audio_path)
         output_dir = os.path.dirname(abs_audio_path)
         download_path = os.path.join(output_dir, download_filename)
-        
+
         shutil.copy2(abs_audio_path, download_path)
     except Exception as e:
         print(f"Error creating download file: {e}")

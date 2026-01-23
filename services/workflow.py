@@ -56,7 +56,9 @@ class VoiceDTO:
 class PodcastWorkflow(IWorkflow):
     """Workflow: LLM → Skript → TTS → DB"""
 
-    def __init__(self, llm_service: ILLMService = None, tts_service: ITTSService = None):
+    def __init__(
+        self, llm_service: ILLMService = None, tts_service: ITTSService = None
+    ):
         self.llm_service = llm_service or LLMService()
         self.tts_service = tts_service or GoogleTTSService()
 
@@ -74,7 +76,6 @@ class PodcastWorkflow(IWorkflow):
         zweitstimme: str | None,
         source_text: str | None = None,
     ) -> str:
-
         config = {
             "language": sprache,
             "dauer": dauer,
@@ -531,7 +532,6 @@ class PodcastWorkflow(IWorkflow):
 
 
 if __name__ == "__main__":
-
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("MAIN")
 

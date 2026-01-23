@@ -5,13 +5,16 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+
 @pytest.fixture(autouse=True)
 def mock_env_vars(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "DUMMY_KEY")
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/dummy/path.json")
 
+
 from services.workflow import PodcastWorkflow
 from services.llm_service import LLMService
+
 
 @patch("services.workflow.get_db")
 @patch("services.workflow.LLMService")
@@ -46,7 +49,7 @@ def test_workflow_run_pipeline_success(
 
     mock_llm = MockLLMService.return_value
     mock_llm.generate_script.return_value = "Dies ist ein generiertes Skript."
-    
+
     mock_tts = MockTTSService.return_value
     mock_audio_obj = MagicMock()
     mock_audio_obj.export.return_value = None
@@ -70,5 +73,5 @@ def test_workflow_run_pipeline_success(
     mock_llm.generate_script.assert_called_once()
     mock_tts.generate_audio.assert_called_once()
     MockTextRepo.return_value.add.assert_called_once()
-    
+
     assert result_path == os.path.join("Output", "podcast_google_1234.mp3")
