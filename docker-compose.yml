@@ -1,4 +1,25 @@
 services:
+  mailserver:
+    image: mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail
+    # Diese Domain muss in der .env als DOMAINNAME gesetzt sein (z.B. example.com)
+    domainname: ${DOMAINNAME:-localhost}
+    ports:
+      - "25:25" # SMTP
+      - "587:587" # SMTP Submission
+      - "465:465" # SMTP SSL
+    environment:
+      - OVERRIDE_HOSTNAME=mail.${DOMAINNAME:-localhost}
+      - DMS_DEBUG=0
+      - PERMIT_DOCKER=network # Erlaubt Containern das Senden ohne Auth auf Port 25
+    volumes:
+      - mail_data:/var/mail
+      - mail_state:/var/mail-state
+      - mail_logs:/var/log/mail
+      - mail_config:/tmp/docker-mailserver
+    restart: always
+
   podcast-app:
     build: .
     container_name: podcast-generator
@@ -11,14 +32,22 @@ services:
       # Wir überschreiben die Variable für den Container-Pfad
       - GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
       # Auf dem VPS bitte auskommentieren, da nicht benötigt!
-      # - SSH_KEY_PATH=/app/ssh_key 
+      # - SSH_KEY_PATH=/app/ssh_key
     env_file:
       - .env
     volumes:
       - ./data:/app/data
       - ./Output:/app/Output
-      # Google Key Pfad in der .env setzen 
+      # Google Key Pfad in der .env setzen
       - ${GOOGLE_KEY_LOCAL_PATH}:/app/google-credentials.json
       # SSH Key Pfad in der .env setzen, auf VPS mit lokaler DB nicht notwendig!
       # - ${SSH_KEY_LOCAL_PATH}:/app/ssh_key
     restart: unless-stopped
+
+volumes:
+  data:
+  Output:
+  mail_data:
+  mail_state:
+  mail_logs:
+  mail_config:
