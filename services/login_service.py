@@ -1,7 +1,7 @@
 import datetime
 import secrets
 import string
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 from passlib.hash import argon2
 from database.database import get_db
@@ -104,7 +104,7 @@ def verify_login_link(db_session: Any, email: str, input_token: str) -> Any:
     return user
 
 
-def process_login_request(email: str) -> str:
+def process_login_request(email: str) -> Union[str, Dict[str, Any]]:
     """
     Verwaltet den Datenbank-Lebenszyklus für eine Login-Anfrage.
 

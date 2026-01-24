@@ -1,18 +1,19 @@
+import enum
+from datetime import datetime
+from typing import Optional
+
 from sqlalchemy import (
+    Boolean,
     Column,
-    Integer,
-    String,
     Date,
     DateTime,
-    Boolean,
     Enum,
     ForeignKey,
+    Integer,
+    String,
     Text,
 )
 from sqlalchemy.orm import declarative_base, relationship
-from datetime import date
-from typing import List
-import enum
 
 # Basisklasse für die Deklaration von Klassen-Mappings
 Base = declarative_base()
@@ -36,10 +37,10 @@ class Benutzer(Base):
     __tablename__ = "Benutzer"
     userId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
     smailAdresse = Column(String(255), unique=True, nullable=False)
-    token = Column(String(255), unique=True, nullable=True)
+    token: Optional[str] = Column(String(255), unique=True, nullable=True)  # type: ignore
     status = Column(String(255), unique=True, nullable=False)
     registrierungsdatum = Column(Date, nullable=False)
-    token_timestamp = Column(DateTime, nullable=True)
+    token_timestamp: Optional[datetime] = Column(DateTime, nullable=True)  # type: ignore
 
     # Beziehungen (1:n)
     textbeitraege = relationship("Textbeitrag", back_populates="ersteller")
