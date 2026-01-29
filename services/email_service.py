@@ -91,8 +91,6 @@ class EmailService:
                 with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
                     server.set_debuglevel(1)
 
-                    # STARTTLS & Login nur nutzen, wenn wir NICHT auf Port 25 sind
-                    # Port 25 nutzen wir hier als "internen" Port ohne Auth (dank PERMIT_DOCKER)
                     if self.smtp_port != 25:
                         server.starttls()
                         server.login(self.smtp_user, self.smtp_password)
