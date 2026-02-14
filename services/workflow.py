@@ -22,35 +22,11 @@ from repositories import VoiceRepo, TextRepo, JobRepo, PodcastRepo
 import logging
 from dotenv import load_dotenv
 
-# --------------------------------------------------
-# ffmpeg Pfad setzen (wichtig für pydub)
-# --------------------------------------------------
-# AudioSegment.converter = r"C:\Users\musti\Downloads\ffmpeg-8.0.1-essentials_build\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe"
-# AudioSegment.ffprobe = r"C:\Users\musti\Downloads\ffmpeg-8.0.1-essentials_build\ffmpeg-8.0.1-essentials_build\bin\ffprobe.exe"
-
-# --------------------------------------------------
-# Logging und ENV laden
-# --------------------------------------------------
 load_dotenv()
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("MAIN")
-
-# --------------------------------------------------
-# Setup
-# --------------------------------------------------
-load_dotenv()
-logger = logging.getLogger(__name__)
-
-
-class VoiceDTO:
-    """Einheitliches Voice-Objekt (DTO)"""
-
-    def __init__(self, voice_id: int, name: str, tts_voice: str):
-        self.stimmeId = voice_id
-        self.name = name
-        self.ttsVoice = tts_voice
 
 
 class PodcastWorkflow(IWorkflow):
@@ -87,20 +63,14 @@ class PodcastWorkflow(IWorkflow):
             "source_max_chars": 12000,
         }
 
-        # Skript vom LLM generieren lassen (nutzt jetzt Markdown laut System-Prompt)
+        # Skript vom LLM generieren lassen
         script = self.llm_service.generate_script(thema=thema, config=config)
 
-        # WICHTIG: Falls das LLM trotz Anweisung XML-Tags (<...>) liefert,
-        # löschen wir diese hier für die UI-Anzeige heraus.
-        # Markdown wie **Text** oder [pause] bleibt erhalten!
+        # XML-Tags entfernen
         clean_script = re.sub(r"<[^>]*>", "", script)
 
         logger.info("Skript erfolgreich generiert und XML-Tags für UI entfernt.")
         return clean_script.strip()
-
-    # --------------------------------------------------
-    # 2) TTS → Audio (VERARBEITET NUTZER-MARKDOWN)
-    # --------------------------------------------------
 
     # --------------------------------------------------
     # 2) TTS → Audio
@@ -145,8 +115,7 @@ class PodcastWorkflow(IWorkflow):
         self,
         session,
         user_id,
-        llm_id,
-        tts_id,
+        # llm_id, tts_id entfernt
         user_prompt,
         script,
         thema,
@@ -165,7 +134,7 @@ class PodcastWorkflow(IWorkflow):
             text = text_repo.add(
                 Textbeitrag(
                     userId=user_id,
-                    llmId=llm_id,
+                    # llmId entfernt
                     userPrompt=user_prompt,
                     erzeugtesSkript=script,
                     titel=thema,
@@ -176,11 +145,12 @@ class PodcastWorkflow(IWorkflow):
             job = job_repo.add(
                 Konvertierungsauftrag(
                     textId=text.textId,
-                    modellId=tts_id,
-                    hauptstimmeId=primary_voice.stimmeId,
-                    zweitstimmeId=secondary_voice.stimmeId if secondary_voice else None,
-                    hauptstimmeRolle=primary_role,  # NEU
-                    zweitstimmeRolle=secondary_role if secondary_voice else None,  # NEU
+                    # modellId entfernt
+                    # IDs entfernt, Strings rein
+                    hauptstimmeName=primary_voice.name,
+                    zweitstimmeName=secondary_voice.name if secondary_voice else None,
+                    hauptstimmeRolle=primary_role,
+                    zweitstimmeRolle=secondary_role if secondary_voice else None,
                     gewuenschteDauer=dauer,
                     status=AuftragsStatus.IN_BEARBEITUNG,
                 )
@@ -239,20 +209,6 @@ class PodcastWorkflow(IWorkflow):
         finally:
             session.close()
 
-    '''
-    def get_audio_path_by_index(self, index: int) -> str:
-        """ Gibt den Pfad anhand des Tabellen-Index zurück """
-        session = get_db()
-        try:
-            podcast_repo = PodcastRepo(session)
-            podcasts = podcast_repo.get_all_sorted_by_date_desc()
-            if 0 <= index < len(podcasts):
-                return podcasts[index].dateipfadAudio
-            return ""
-        finally:
-            session.close()
-    '''
-
     def get_podcasts_data(self, user_id: int = None):
         """Returns list of dicts for the UI cards, filtered by user_id if provided."""
         session = get_db()
@@ -273,14 +229,13 @@ class PodcastWorkflow(IWorkflow):
                 speakers = []
                 roles = []
 
-                if job.hauptstimme:
-                    speakers.append(job.hauptstimme.name)
-                    # NEU: Nutze die gespeicherte Rolle
+                # NEU: Namen aus String-Spalten lesen
+                if job.hauptstimmeName:
+                    speakers.append(job.hauptstimmeName)
                     roles.append(job.hauptstimmeRolle or "Sprecher")
 
-                if job.zweitstimme:
-                    speakers.append(job.zweitstimme.name)
-                    # NEU: Nutze die gespeicherte Rolle
+                if job.zweitstimmeName:
+                    speakers.append(job.zweitstimmeName)
                     roles.append(job.zweitstimmeRolle or "Sprecher")
 
                 text = job.textbeitrag
@@ -309,7 +264,6 @@ class PodcastWorkflow(IWorkflow):
         session = get_db()
         try:
             voice_repo = VoiceRepo(session)
-            # Wir holen die Namen getrennt nach Slot 1 und 2
             primary_names = [v.name for v in voice_repo.get_voices_by_slot(1)]
             secondary_names = [v.name for v in voice_repo.get_voices_by_slot(2)]
             return primary_names, secondary_names
@@ -331,12 +285,19 @@ class PodcastWorkflow(IWorkflow):
         session = get_db()
         try:
             voice_repo = VoiceRepo(session)
-            db_p = voice_repo.get_voices_by_names([hauptstimme])[0]
+            
+            # Sicher suchen
+            voices_p = voice_repo.get_voices_by_names([hauptstimme])
+            if not voices_p:
+                raise TTSServiceError(f"Hauptstimme '{hauptstimme}' nicht gefunden!")
+            db_p = voices_p[0]
+            
             db_s = None
             if zweitstimme and zweitstimme != "Keine":
-                db_s = voice_repo.get_voices_by_names([zweitstimme])[0]
+                voices_s = voice_repo.get_voices_by_names([zweitstimme])
+                if voices_s:
+                    db_s = voices_s[0]
 
-            # Return the Pydub AudioSegment directly without exporting
             return self.tts_service.generate_audio(
                 script_text=script_text,
                 sprache=sprache,
@@ -382,18 +343,17 @@ class PodcastWorkflow(IWorkflow):
     ):
         """
         Saves podcast metadata to the database
-        Called by the UI backend after the file has been successfully generated and saved
         """
-        llm_id, tts_id = 1, 1  # Fixed IDs for now
         session = get_db()
         try:
             voice_repo = VoiceRepo(session)
 
-            # Resolve Voice Names to DB Objects
-            # Primary voice is assumed to exist
-            db_p = voice_repo.get_voices_by_names([hauptstimme])[0]
+            # Resolve Voice Names to Hardcoded Objects
+            voices_p = voice_repo.get_voices_by_names([hauptstimme])
+            if not voices_p:
+                raise ValueError(f"Stimme '{hauptstimme}' nicht gefunden")
+            db_p = voices_p[0]
 
-            # Secondary voice is optional
             db_s = None
             if zweitstimme and zweitstimme != "Keine":
                 voices_s = voice_repo.get_voices_by_names([zweitstimme])
@@ -403,8 +363,6 @@ class PodcastWorkflow(IWorkflow):
             return self._save_metadata(
                 session=session,
                 user_id=user_id,
-                llm_id=llm_id,
-                tts_id=tts_id,
                 user_prompt="",
                 script=script,
                 thema=thema,
@@ -438,22 +396,26 @@ class PodcastWorkflow(IWorkflow):
         role1=None,
         role2=None,
     ):
-        llm_id, tts_id = 1, 1
         session = get_db()
         try:
             voice_repo = VoiceRepo(session)
-            db_p = voice_repo.get_voices_by_names([hauptstimme])[0]
+            
+            voices_p = voice_repo.get_voices_by_names([hauptstimme])
+            if not voices_p:
+                raise TTSServiceError(f"Stimme '{hauptstimme}' nicht gefunden")
+            db_p = voices_p[0]
+            
             db_s = None
             if zweitstimme and zweitstimme != "Keine":
-                db_s = voice_repo.get_voices_by_names([zweitstimme])[0]
+                voices_s = voice_repo.get_voices_by_names([zweitstimme])
+                if voices_s:
+                    db_s = voices_s[0]
 
             audio_path = self._generate_audio(script_text, sprache, db_p, db_s)
 
             self._save_metadata(
                 session,
                 user_id,
-                llm_id,
-                tts_id,
                 "",
                 script_text,
                 thema,
@@ -464,7 +426,7 @@ class PodcastWorkflow(IWorkflow):
                 audio_path,
                 role1,
                 role2,
-            )  # NEU: Rollen übergeben
+            )
             return audio_path
         finally:
             session.close()
@@ -472,8 +434,6 @@ class PodcastWorkflow(IWorkflow):
     def run_pipeline(
         self,
         user_id,
-        llm_id,
-        tts_id,
         thema,
         dauer,
         sprache,
@@ -484,12 +444,17 @@ class PodcastWorkflow(IWorkflow):
         session = get_db()
         try:
             voice_repo = VoiceRepo(session)
-            db_p = voice_repo.get_voices_by_names([hauptstimme])[0]
-            db_s = (
-                voice_repo.get_voices_by_names([zweitstimme])[0]
-                if zweitstimme
-                else None
-            )
+            
+            voices_p = voice_repo.get_voices_by_names([hauptstimme])
+            if not voices_p:
+                raise TTSServiceError(f"Stimme '{hauptstimme}' nicht gefunden")
+            db_p = voices_p[0]
+            
+            db_s = None
+            if zweitstimme and zweitstimme != "Keine":
+                voices_s = voice_repo.get_voices_by_names([zweitstimme])
+                if voices_s:
+                    db_s = voices_s[0]
 
             script = self.generate_script(
                 thema, sprache, dauer, 2 if db_s else 1, {}, hauptstimme, zweitstimme
@@ -500,8 +465,6 @@ class PodcastWorkflow(IWorkflow):
             self._save_metadata(
                 session,
                 user_id,
-                llm_id,
-                tts_id,
                 "",
                 script,
                 thema,
@@ -520,7 +483,6 @@ class PodcastWorkflow(IWorkflow):
         session = get_db()
         try:
             podcast_repo = PodcastRepo(session)
-            # Verify ownership before deletion
             user_podcasts = podcast_repo.get_by_user_id(user_id)
             if any(p.podcastId == podcast_id for p in user_podcasts):
                 podcast_repo.delete_by_id(podcast_id)
@@ -539,14 +501,12 @@ if __name__ == "__main__":
 
     try:
         audio_file = workflow.run_pipeline(
-            user_id=1,  # Dummy-User, z.B. für Test
-            llm_id=1,  # Dummy LLM-ID
-            tts_id=1,  # Dummy TTS-ID
+            user_id=1,
             thema="Generative KI und ihre Anwendungen",
             dauer=1,
             sprache="de",
             hauptstimme="Max",
-            zweitstimme="Sara",
+            zweitstimme="Sarah", # Korrigiert: Sarah mit h
             speakers=2,
         )
         logger.info(f"Podcast erfolgreich erstellt: {audio_file}")

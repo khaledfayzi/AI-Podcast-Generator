@@ -1,10 +1,5 @@
 import os
-import smtplib
-import ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.utils import formatdate, make_msgid
-
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,15 +8,14 @@ load_dotenv()
 class EmailService:
     def __init__(self):
         """
-        Setup für SMTP (eigener Mailserver).
+        Setup für Mailgun API.
         Die Zugangsdaten müssen in der .env stehen.
         """
-        self.smtp_server = os.getenv("SMTP_SERVER", "mailserver")
-        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_user = os.getenv("SMTP_USER", "user@example.com")
-        self.smtp_password = os.getenv("SMTP_PASSWORD", "password")
-        self.sender_email = os.getenv("SMTP_FROM_EMAIL", "noreply@example.com")
+        self.api_key = os.getenv("MAILGUN_API_KEY")
+        self.domain = os.getenv("MAILGUN_DOMAIN")
+        self.sender_email = os.getenv("SMTP_FROM_EMAIL", f"noreply@{self.domain}")
         self.sender_name = "Podcast Generator KI"
+        self.api_url = f"https://api.eu.mailgun.net/v3/{self.domain}/messages"
 
     def _get_html_template(self, token):
         """
@@ -57,49 +51,32 @@ class EmailService:
 
     def send_login_token(self, to_email, token):
         """
-        Verschickt die Mail über den konfigurierten SMTP Server.
+        Verschickt die Mail über die Mailgun API.
         """
-        # Erstelle die Nachricht
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Dein Login-Code: {token}"
-        msg["From"] = f"{self.sender_name} <{self.sender_email}>"
-        msg["To"] = to_email
-        msg["Date"] = formatdate(localtime=True)
-        msg["Message-ID"] = make_msgid()
-
-        text = f"Moin! Dein Code ist: {token}"
-        html = self._get_html_template(token)
-
-        part1 = MIMEText(text, "plain")
-        part2 = MIMEText(html, "html")
-
-        msg.attach(part1)
-        msg.attach(part2)
+        if not self.api_key or not self.domain:
+            print("Mailgun Fehler: API_KEY oder DOMAIN fehlt in der .env")
+            return False
 
         try:
-            # Verbindung zum SMTP Server herstellen
-            # Bei Port 465 SSL nutzen
-            if self.smtp_port == 465:
-                context = ssl.create_default_context()
-                with smtplib.SMTP_SSL(
-                    self.smtp_server, self.smtp_port, context=context
-                ) as server:
-                    server.login(self.smtp_user, self.smtp_password)
-                    server.sendmail(self.sender_email, to_email, msg.as_string())
+            response = requests.post(
+                self.api_url,
+                auth=("api", self.api_key),
+                data={
+                    "from": f"{self.sender_name} <{self.sender_email}>",
+                    "to": [to_email],
+                    "subject": f"Dein Login-Code: {token}",
+                    "text": f"Moin! Dein Code ist: {token}",
+                    "html": self._get_html_template(token),
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                return True
             else:
-                # Bei Port 587 oder 25
-                with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                    server.set_debuglevel(1)
-
-                    if self.smtp_port != 25:
-                        server.starttls()
-                        server.login(self.smtp_user, self.smtp_password)
-
-                    # Bei Port 25 senden wir einfach ohne Login (Server muss das erlauben)
-                    server.sendmail(self.sender_email, to_email, msg.as_string())
-
-            return True
+                print(f"Mailgun Fehler: Status {response.status_code} - {response.text}")
+                return False
 
         except Exception as e:
-            print(f"SMTP Fehler: E-Mail senden ist abgeschmiert: {e}")
+            print(f"Mailgun Fehler: E-Mail senden ist fehlgeschlagen: {e}")
             return False

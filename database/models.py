@@ -26,6 +26,23 @@ class AuftragsStatus(enum.Enum):
     FEHLGESCHLAGEN = "Fehlgeschlagen"
 
 
+# --- Hardcoded Classes (Keine DB-Modelle mehr) ---
+
+
+class PodcastStimme:
+    """
+    Repräsentiert eine Stimme (früher DB-Tabelle, jetzt Hardcoded).
+    """
+
+    def __init__(self, stimmeId, name, geschlecht, tts_voice_de, tts_voice_en, ui_slot):
+        self.stimmeId = stimmeId
+        self.name = name
+        self.geschlecht = geschlecht
+        self.ttsVoice_de = tts_voice_de
+        self.ttsVoice_en = tts_voice_en
+        self.ui_slot = ui_slot
+
+
 # --- 1. Kern-Entitäten ---
 
 
@@ -47,38 +64,6 @@ class Benutzer(Base):
     quelldateien = relationship("Quelldatei", back_populates="besitzer")
 
 
-class LLMModell(Base):
-    """
-    Metadaten für ein Large Language Model (LD04).
-    """
-
-    __tablename__ = "LLMModell"
-    llmId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
-    modellName = Column(String(100), nullable=False)
-    version = Column(String(50), nullable=False)
-    typ = Column(String(50))
-
-    # Beziehungen (1:n)
-    textbeitraege = relationship("Textbeitrag", back_populates="llm_modell")
-
-
-class TTSModell(Base):
-    """
-    Metadaten für ein Text-to-Speech (TTS) Modell (LD05).
-    """
-
-    __tablename__ = "TTSModell"
-    modellId = Column(Integer, primary_key=True, autoincrement=True, comment="PK")
-    modellName = Column(String(100), nullable=False)
-    version = Column(String(50), nullable=False)
-    typ = Column(String(50))
-
-    # Beziehungen (1:n)
-    konvertierungsauftraege = relationship(
-        "Konvertierungsauftrag", back_populates="tts_modell"
-    )
-
-
 # --- 2. Inhalts- & Quelldaten ---
 
 
@@ -92,7 +77,6 @@ class Textbeitrag(Base):
 
     # Fremdschlüssel
     userId = Column(Integer, ForeignKey("Benutzer.userId"), comment="FK")
-    llmId = Column(Integer, ForeignKey("LLMModell.llmId"), comment="FK")
 
     userPrompt = Column(Text)
     erzeugtesSkript = Column(Text, nullable=False)
@@ -103,7 +87,6 @@ class Textbeitrag(Base):
 
     # Beziehungen (n:1)
     ersteller = relationship("Benutzer", back_populates="textbeitraege")
-    llm_modell = relationship("LLMModell", back_populates="textbeitraege")
 
     # Beziehungen (1:n)
     quelldateien = relationship("Quelldatei", back_populates="textbeitrag")
@@ -144,15 +127,12 @@ class Konvertierungsauftrag(Base):
     __tablename__ = "Konvertierungsauftrag"
     auftragId = Column(Integer, primary_key=True, autoincrement=True)
 
-    # ... andere Felder (textId, modellId) bleiben ...
     textId = Column(Integer, ForeignKey("Textbeitrag.textId"))
-    modellId = Column(Integer, ForeignKey("TTSModell.modellId"))
 
-    # NEU: Der Auftrag zeigt auf die Stimmen, nicht umgekehrt!
-    hauptstimmeId = Column(Integer, ForeignKey("PodcastStimme.stimmeId"), nullable=True)
-    zweitstimmeId = Column(Integer, ForeignKey("PodcastStimme.stimmeId"), nullable=True)
+    hauptstimmeName = Column(String(50), nullable=True)
+    zweitstimmeName = Column(String(50), nullable=True)
 
-    # NEU: Rollen speichern
+    # Rollen speichern
     hauptstimmeRolle = Column(String(100), nullable=True)
     zweitstimmeRolle = Column(String(100), nullable=True)
 
@@ -161,11 +141,6 @@ class Konvertierungsauftrag(Base):
 
     # Relationships
     textbeitrag = relationship("Textbeitrag", back_populates="konvertierungsauftraege")
-    tts_modell = relationship("TTSModell", back_populates="konvertierungsauftraege")
-
-    # Optional: Zugriff auf die Stimmen-Objekte
-    hauptstimme = relationship("PodcastStimme", foreign_keys=[hauptstimmeId])
-    zweitstimme = relationship("PodcastStimme", foreign_keys=[zweitstimmeId])
 
     podcast = relationship(
         "Podcast", back_populates="konvertierungsauftrag", uselist=False
@@ -200,19 +175,3 @@ class Podcast(Base):
     konvertierungsauftrag = relationship(
         "Konvertierungsauftrag", back_populates="podcast"
     )
-
-
-class PodcastStimme(Base):
-    """
-    Katalog der verfügbaren Stimmen. Unabhängig von konkreten Aufträgen.
-    """
-
-    __tablename__ = "PodcastStimme"
-    stimmeId = Column(Integer, primary_key=True, autoincrement=True)
-
-    ui_slot = Column(Integer, default=0)
-    name: str = Column(String(50), nullable=False, unique=True)  # type: ignore # z.B. "Hans"
-    ttsVoice_de: str = Column("tts_voice_de", String(50), nullable=False)  # type: ignore
-    ttsVoice_en: str = Column("tts_voice_en", String(50), nullable=False)  # type: ignore
-
-    geschlecht: str = Column(String(50), nullable=False)  # type: ignore # "m" oder "w"

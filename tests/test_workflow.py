@@ -39,29 +39,31 @@ def _mock_db_for_all_tests(mock_session):
 @pytest.fixture
 def voice_max():
     """
-    Mock für die Hauptstimme aus der Datenbank.
+    Mock für die Hauptstimme.
     """
-    v = PodcastStimme(
+    return PodcastStimme(
+        stimmeId=1,
         name="Max",
-        ttsVoice_de="de-DE-Voice-Max",
-        ttsVoice_en="en-US-Voice-Max",
+        geschlecht="m",
+        tts_voice_de="de-DE-Voice-Max",
+        tts_voice_en="en-US-Voice-Max",
+        ui_slot=1
     )
-    v.stimmeId = 1
-    return v
 
 
 @pytest.fixture
 def voice_sarah():
     """
-    Mock für die Zweitstimme aus der Datenbank.
+    Mock für die Zweitstimme.
     """
-    v = PodcastStimme(
+    return PodcastStimme(
+        stimmeId=2,
         name="Sarah",
-        ttsVoice_de="de-DE-Voice-Sarah",
-        ttsVoice_en="en-US-Voice-Sarah",
+        geschlecht="w",
+        tts_voice_de="de-DE-Voice-Sarah",
+        tts_voice_en="en-US-Voice-Sarah",
+        ui_slot=2
     )
-    v.stimmeId = 2
-    return v
 
 
 @pytest.fixture
@@ -222,10 +224,10 @@ def test_generate_audio_passing_roles_and_stimmen_objekte(
     args, _ = save_meta.call_args
     assert args[0] == mock_session
     assert args[1] == 7
-    assert args[9] == voice_max
-    assert args[10] == voice_sarah
-    assert args[11] == "Output/test.mp3"
-    assert args[12] == "Moderator"
-    assert args[13] == "Co-Host"
+    assert args[7] == voice_max
+    assert args[8] == voice_sarah
+    assert args[9] == "Output/test.mp3"
+    assert args[10] == "Moderator"
+    assert args[11] == "Co-Host"
 
     mock_session.close.assert_called_once()
