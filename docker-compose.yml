@@ -1,25 +1,4 @@
 services:
-  mailserver:
-    image: mailserver/docker-mailserver:latest
-    container_name: mailserver
-    hostname: mail
-    # Diese Domain muss in der .env als DOMAINNAME gesetzt sein (z.B. example.com)
-    domainname: ${DOMAINNAME:-localhost}
-    ports:
-      - "25:25" # SMTP
-      - "587:587" # SMTP Submission
-      - "465:465" # SMTP SSL
-    environment:
-      - OVERRIDE_HOSTNAME=mail.${DOMAINNAME:-localhost}
-      - DMS_DEBUG=0
-      - PERMIT_DOCKER=network # Erlaubt Containern das Senden ohne Auth auf Port 25
-    volumes:
-      - mail_data:/var/mail
-      - mail_state:/var/mail-state
-      - mail_logs:/var/log/mail
-      - mail_config:/tmp/docker-mailserver
-    restart: always
-
   podcast-app:
     build: .
     container_name: podcast-generator
@@ -47,7 +26,3 @@ services:
 volumes:
   data:
   Output:
-  mail_data:
-  mail_state:
-  mail_logs:
-  mail_config:
