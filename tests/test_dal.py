@@ -5,8 +5,6 @@ from datetime import date
 from database.models import (
     Base,
     AuftragsStatus,
-    LLMModell,
-    TTSModell,
     PodcastStimme,
     Textbeitrag,
     Konvertierungsauftrag,
@@ -27,27 +25,6 @@ def db_session():
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
-
-    # Standard-Daten seeden
-    llm = LLMModell(modellName="GPT-4", version="4.0", typ="Chat")
-    tts = TTSModell(modellName="Google TTS", version="v1", typ="Standard")
-    voice_max = PodcastStimme(
-        name="Max",
-        ttsVoice_de="de-DE-Wavenet-A",
-        ttsVoice_en="en-US-Wavenet-A",
-        geschlecht="m",
-        ui_slot=1,
-    )
-    voice_sara = PodcastStimme(
-        name="Sarah",
-        ttsVoice_de="de-DE-Wavenet-B",
-        ttsVoice_en="en-US-Wavenet-B",
-        geschlecht="w",
-        ui_slot=2,
-    )
-
-    session.add_all([llm, tts, voice_max, voice_sara])
-    session.commit()
 
     yield session
 
@@ -73,12 +50,9 @@ def test_text_repository(db_session):
     user = user_repo.create_user("author@example.com")
     db_session.commit()
 
-    llm = db_session.query(LLMModell).first()
-
     text_repo = TextRepo(db_session)
     t = Textbeitrag(
         userId=user.userId,
-        llmId=llm.llmId,
         userPrompt="Hello",
         erzeugtesSkript="Script Content",
         titel="My Script",
@@ -94,16 +68,15 @@ def test_text_repository(db_session):
 
 def test_job_repository_and_relationships(db_session):
     user = UserRepo(db_session).create_user("jobuser@example.com")
-    llm = db_session.query(LLMModell).first()
-    tts = db_session.query(TTSModell).first()
-    voice_max = db_session.query(PodcastStimme).filter_by(name="Max").first()
-    voice_sara = db_session.query(PodcastStimme).filter_by(name="Sarah").first()
+    
+    # Stimmen sind jetzt hardcoded, wir nehmen einfach Namen
+    v_name_1 = "Max"
+    v_name_2 = "Sarah"
 
     text_repo = TextRepo(db_session)
     text = text_repo.add(
         Textbeitrag(
             userId=user.userId,
-            llmId=llm.llmId,
             erzeugtesSkript="...",
             titel="Job Test",
             erstelldatum=date.today(),
@@ -116,9 +89,8 @@ def test_job_repository_and_relationships(db_session):
     job_repo = JobRepo(db_session)
     job = Konvertierungsauftrag(
         textId=text.textId,
-        modellId=tts.modellId,
-        hauptstimmeId=voice_max.stimmeId,
-        zweitstimmeId=voice_sara.stimmeId,
+        hauptstimmeName=v_name_1,
+        zweitstimmeName=v_name_2,
         hauptstimmeRolle="Host",
         zweitstimmeRolle="Guest",
         gewuenschteDauer=5,
@@ -127,8 +99,8 @@ def test_job_repository_and_relationships(db_session):
     saved_job = job_repo.add(job)
     db_session.commit()
 
-    assert saved_job.hauptstimme.name == "Max"
-    assert saved_job.zweitstimme.name == "Sarah"
+    assert saved_job.hauptstimmeName == "Max"
+    assert saved_job.zweitstimmeName == "Sarah"
 
     pending = job_repo.get_pending_jobs()
     assert len(pending) == 1
@@ -141,13 +113,10 @@ def test_job_repository_and_relationships(db_session):
 
 def test_podcast_repository(db_session):
     user = UserRepo(db_session).create_user("poduser@example.com")
-    llm = db_session.query(LLMModell).first()
-    tts = db_session.query(TTSModell).first()
 
     db_session.add(
         Textbeitrag(
             userId=user.userId,
-            llmId=llm.llmId,
             erzeugtesSkript="...",
             titel="P",
             erstelldatum=date.today(),
@@ -161,7 +130,6 @@ def test_podcast_repository(db_session):
     db_session.add(
         Konvertierungsauftrag(
             textId=text.textId,
-            modellId=tts.modellId,
             gewuenschteDauer=10,
             status=AuftragsStatus.ABGESCHLOSSEN,
         )
@@ -181,7 +149,6 @@ def test_podcast_repository(db_session):
 
     job2 = Konvertierungsauftrag(
         textId=text.textId,
-        modellId=tts.modellId,
         gewuenschteDauer=5,
         status=AuftragsStatus.ABGESCHLOSSEN,
     )
@@ -205,12 +172,16 @@ def test_podcast_repository(db_session):
 
 
 def test_voice_repo(db_session):
+    # Das VoiceRepo nutzt jetzt VOICES aus database.voices
     repo = VoiceRepo(db_session)
     voices = repo.get_all()
     names = [v.name for v in voices]
+    
+    # Check ob die Standard-Stimmen da sind
     assert "Max" in names
     assert "Sarah" in names
 
     slot1 = repo.get_voices_by_slot(1)
     assert any(v.name == "Max" for v in slot1)
+    # Sarah ist in Slot 2 (laut voices.py)
     assert not any(v.name == "Sarah" for v in slot1)

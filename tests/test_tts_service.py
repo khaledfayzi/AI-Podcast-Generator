@@ -29,9 +29,12 @@ def voice_max():
     Erstellt ein Mock-Objekt für einen männlichen Sprecher.
     """
     return PodcastStimme(
+        stimmeId=1,
         name="Max",
-        ttsVoice_de="de-DE-Chirp3-HD-Achird",
-        ttsVoice_en="en-US-Chirp3-HD-Achird",
+        geschlecht="m",
+        tts_voice_de="de-DE-Chirp3-HD-Achird",
+        tts_voice_en="en-US-Chirp3-HD-Achird",
+        ui_slot=1
     )
 
 
@@ -41,9 +44,12 @@ def voice_sara():
     Erstellt ein Mock-Objekt für eine weibliche Sprecherin.
     """
     return PodcastStimme(
-        name="Sara",
-        ttsVoice_de="de-DE-Chirp3-HD-Erinome",
-        ttsVoice_en="en-US-Chirp3-HD-Erinome",
+        stimmeId=2,
+        name="Sarah",
+        geschlecht="w",
+        tts_voice_de="de-DE-Chirp3-HD-Erinome",
+        tts_voice_en="en-US-Chirp3-HD-Erinome",
+        ui_slot=2
     )
 
 
@@ -82,8 +88,8 @@ def test_sprecherwechsel(tts_service, voice_max, voice_sara):
     und die Segmente in der richtigen Reihenfolge verarbeitet.
     """
     script = """
-    Max: Hallo Sara.
-    Sara: Hallo Max, wie geht es?
+    Max: Hallo Sarah.
+    Sarah: Hallo Max, wie geht es?
     Max: Mir geht es gut.
     """
 
