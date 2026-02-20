@@ -1,37 +1,28 @@
 # --- WICHTIG: Sicherheit & Umgebung ---
 .venv/
+.env
 *.env
+google-credentials.json
+syp-ki-podcast-generator-e94d5e3f0360.json
 
 # --- Python Standard ---
 __pycache__/
 *.pyc
 
-# --- IDE / Editor Einstellungen (optional aber empfohlen) ---
+# --- IDE / Editor Einstellungen ---
 .vscode/
 .idea/
-.idea
 .DS_Store
 
 # --- Projekt-spezifisch (Generierte Dateien) ---
-# Wir wollen keine generierten MP3s oder Logs im Repo haben
+Output/
 output/
 *.mp3
 *.log
 db_data/
 
-# --- DOKUMENTATION (falls das Wiki nicht ins Repo soll) ---
-doctemplate.wiki
-
-scripts
-pdfs_test
-
-tests/tests_tts_voices.py
+# --- Tests / temporäre Artefakte ---
 tests/*.mp3
-services/__pycache__/tts_service.cpython-313.pyc
 
+# --- Sonstiges ---
 Besprechen.txt
-.json!/team04/services/output/
-syp-ki-podcast-generator-e94d5e3f0360.json
-
-
-.env
